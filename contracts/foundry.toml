@@ -6,8 +6,10 @@ solc = "0.8.26"
 evm_version = "cancun"
 
 [rpc_endpoints]
-mainnet = "${RPC_URL}"
-sepolia = "${SEPOLIA_RPC_URL}"
+bsc = "${BSC_RPC_URL}"
+bsc_testnet = "${BSC_TESTNET_RPC_URL}"
+opbnb = "${OPBNB_RPC_URL}"
 
 [etherscan]
-mainnet = { key = "${ETHERSCAN_API_KEY}" }
+bsc = { key = "${BSCSCAN_API_KEY}", url = "https://api.bscscan.com/api" }
+bsc_testnet = { key = "${BSCSCAN_API_KEY}", url = "https://api-testnet.bscscan.com/api" }

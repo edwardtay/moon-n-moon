@@ -1,4 +1,4 @@
 export const siteConfig = {
-  name: "My App",
-  description: "A web3 application.",
+  name: "Moon or Doom",
+  description: "Predict the crash. Cash out or get rekt.",
 } as const;

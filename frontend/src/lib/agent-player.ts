@@ -224,6 +224,11 @@ async function runAgentLoop(): Promise<void> {
   console.log("[agent] Starting agentic loop for round decision...");
   setThinking("Analyzing the market...");
 
+  // Race the AI call against a 4-second timer.
+  // If AI is too slow, fall back to deterministic strategy before betting window closes.
+  const bettingDeadline = Date.now() + 4000;
+  const abortController = new AbortController();
+
   const historyStr = state.lastCrashPoints
     .slice(0, 10)
     .map((c) => (c / 100).toFixed(2) + "x")
@@ -267,9 +272,13 @@ Your record: ${state.wins}W-${state.losses}L (P&L: ${state.totalProfit >= 0 ? "+
   ];
 
   try {
+    // Timeout after 4s — must leave time to actually place the bet
+    const timeoutId = setTimeout(() => abortController.abort(), 4000);
+
     // First API call — Claude should call analyze_history
     const res1 = await fetch(OPENROUTER_URL, {
       method: "POST",
+      signal: abortController.signal,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
@@ -284,6 +293,7 @@ Your record: ${state.wins}W-${state.losses}L (P&L: ${state.totalProfit >= 0 ? "+
     });
 
     if (!res1.ok) {
+      clearTimeout(timeoutId);
       const errText = await res1.text().catch(() => "");
       console.log("[agent] OpenRouter error:", res1.status, errText.slice(0, 200));
       runFallback();
@@ -328,10 +338,19 @@ Your record: ${state.wins}W-${state.losses}L (P&L: ${state.totalProfit >= 0 ? "+
         }
       }
 
+      // Check if we still have time — if <1s left, skip the second call and use fallback
+      if (Date.now() > bettingDeadline - 1000) {
+        console.log("[agent] Running low on time, using fallback for bet decision");
+        clearTimeout(timeoutId);
+        runFallback();
+        return;
+      }
+
       // Second API call — Claude should now decide (place_bet or skip_round)
       console.log("[agent] Step 2 — Sending tool results back for final decision...");
       const res2 = await fetch(OPENROUTER_URL, {
         method: "POST",
+        signal: abortController.signal,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
@@ -344,6 +363,8 @@ Your record: ${state.wins}W-${state.losses}L (P&L: ${state.totalProfit >= 0 ? "+
           messages,
         }),
       });
+
+      clearTimeout(timeoutId);
 
       if (!res2.ok) {
         runFallback();
@@ -384,7 +405,9 @@ Your record: ${state.wins}W-${state.losses}L (P&L: ${state.totalProfit >= 0 ? "+
       return;
     }
   } catch (err) {
-    console.log("[agent] Loop error:", (err as Error).message?.slice(0, 100));
+    const msg = (err as Error).message?.slice(0, 100) || "unknown";
+    console.log("[agent] Loop error:", msg);
+    // If aborted due to timeout or any other error, use the fast fallback
     runFallback();
   }
 }
@@ -482,24 +505,19 @@ function runFallback() {
   bet = Math.round(bet * 10000) / 10000;
   state.targetCashOut = target;
   const addr = AGENT_ADDRESS();
-  // DEBUG v4: embed phase in thinking to verify on Vercel
-  const debugPhase = gameEngine.getState().phase;
-  const debugBets = gameEngine.getState().bets.length;
-  setThinking(state.thinking + ` [p=${debugPhase},b=${debugBets}]`);
   const success = gameEngine.placeBet(addr, bet, true);
   if (success) {
     state.currentBet = bet;
     state.balance -= bet;
     setThinking(
-      `Betting ${bet.toFixed(3)} BNB @ ${(target / 100).toFixed(2)}x`
+      state.thinking +
+        ` [Bet ${bet.toFixed(4)} BNB, target ${(target / 100).toFixed(2)}x]`
     );
 
     // Fire on-chain bet with real tBNB (fire-and-forget)
     if (isAgentChainEnabled()) {
       agentOnChainBet(bet).catch(() => {});
     }
-  } else {
-    setThinking(state.thinking + ` MISS:${debugPhase}`);
   }
 }
 
@@ -532,7 +550,6 @@ export function startAgent() {
 }
 
 async function handleBettingPhase() {
-  console.log(`[agent] handleBettingPhase called, existing bet: ${state.currentBet}`);
   state.currentBet = null;
   state.targetCashOut = null;
   await runAgentLoop();

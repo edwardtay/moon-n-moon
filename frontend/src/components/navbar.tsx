@@ -45,22 +45,22 @@ export function Navbar({ connected, roundId, bnbPrice, onToggleSound }: NavbarPr
   const [soundOn, setSoundOn] = useState(true);
   return (
     <header
-      className="flex items-center justify-between px-4 py-2"
+      className="flex items-center justify-between px-3 sm:px-4 py-2 gap-2"
       style={{
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         background: "rgba(9,9,11,0.85)",
         backdropFilter: "blur(12px)",
       }}
     >
-      <div className="flex items-center gap-3">
-        <Link href="/" className="flex items-center gap-2">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <Link href="/" className="flex items-center gap-1.5 flex-shrink-0">
           <MoonLogo />
           <span className="text-sm font-black tracking-tight text-white">
             MnM
           </span>
         </Link>
-        <div className="flex items-center gap-2 text-xs text-zinc-300">
-          <span className="relative flex h-1.5 w-1.5">
+        <div className="flex items-center gap-1.5 text-xs text-zinc-300 min-w-0">
+          <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
             {connected && (
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
             )}
@@ -68,18 +68,18 @@ export function Navbar({ connected, roundId, bnbPrice, onToggleSound }: NavbarPr
               className={`relative inline-flex rounded-full h-1.5 w-1.5 ${connected ? "bg-emerald-400" : "bg-red-500"}`}
             />
           </span>
-          <span className="font-mono">
+          <span className="font-mono whitespace-nowrap">
             {connected ? "Live" : "..."}
             {roundId && roundId > 0 ? ` #${roundId}` : ""}
           </span>
           {bnbPrice && (
-            <span className="font-mono text-amber-300 ml-1">
+            <span className="font-mono text-amber-300 whitespace-nowrap hidden sm:inline">
               BNB ${bnbPrice.toFixed(0)}
             </span>
           )}
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 flex-shrink-0">
         {onToggleSound && (
           <button
             onClick={() => {
@@ -107,7 +107,27 @@ export function Navbar({ connected, roundId, bnbPrice, onToggleSound }: NavbarPr
             </svg>
           </button>
         )}
-        <ConnectButton />
+        <ConnectButton.Custom>
+          {({ account, chain, openConnectModal, mounted }) => {
+            if (!mounted || !account || !chain) {
+              return (
+                <button
+                  onClick={openConnectModal}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-white whitespace-nowrap"
+                  style={{
+                    background: "linear-gradient(135deg, #ef4444 0%, #f97316 100%)",
+                    border: "1px solid rgba(239,68,68,0.4)",
+                  }}
+                >
+                  Connect
+                </button>
+              );
+            }
+            return (
+              <ConnectButton accountStatus="avatar" chainStatus="icon" showBalance={false} />
+            );
+          }}
+        </ConnectButton.Custom>
       </div>
     </header>
   );

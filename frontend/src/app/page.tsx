@@ -10,17 +10,24 @@ import { Leaderboard } from "@/components/leaderboard";
 import { useGameStream } from "@/hooks/use-game-stream";
 import { useBnbPrice } from "@/hooks/use-bnb-price";
 import { useGameSounds } from "@/hooks/use-game-sounds";
+import { usePersistedStats } from "@/hooks/use-persisted-stats";
 
 export default function Home() {
   const { state, history, connected, agentThinking, placeBet, cashOut } =
     useGameStream();
   const { price: bnbPrice, toUsd } = useBnbPrice();
   const sounds = useGameSounds();
+  const pStats = usePersistedStats();
 
   // Sound: phase changes
   useEffect(() => {
     sounds.onPhaseChange(state.phase);
   }, [state.phase, sounds]);
+
+  // Persist round outcomes
+  useEffect(() => {
+    pStats.processRound(state.phase, state.bets, history);
+  }, [state.phase, state.bets, history, pStats]);
 
   // Wrap placeBet/cashOut with sound
   const placeBetWithSound = useCallback(
@@ -51,13 +58,13 @@ export default function Home() {
         onToggleSound={sounds.toggleSound}
       />
 
-      <main className="flex-1 flex flex-col max-w-6xl mx-auto w-full px-3 py-2 gap-2 min-h-0">
+      <main className="flex-1 flex flex-col max-w-6xl mx-auto w-full px-2 sm:px-3 py-2 gap-2 min-h-0">
         {/* Round history */}
         <RoundHistoryBar history={history} />
 
         {/* Main game grid — fills remaining viewport */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 flex-1 min-h-0">
-          <div className="lg:col-span-8 min-h-[340px]">
+          <div className="lg:col-span-8 min-h-[260px] sm:min-h-[340px]">
             <CrashDisplay
               phase={state.phase}
               multiplier={state.multiplier}
@@ -90,7 +97,7 @@ export default function Home() {
 
             <Leaderboard bets={state.bets} phase={state.phase} toUsd={toUsd} />
 
-            {/* Game stats — fills sidebar gap */}
+            {/* Game stats — persisted across sessions */}
             <div
               className="rounded-xl px-3 py-2.5 space-y-2"
               style={{
@@ -99,23 +106,19 @@ export default function Home() {
               }}
             >
               <div className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">
-                Session Stats
+                All-Time Stats
               </div>
               <div className="grid grid-cols-3 gap-1.5">
                 {[
-                  { label: "Rounds", value: history.length.toString(), color: "#d4d4d8" },
+                  { label: "Rounds", value: pStats.totalRounds.toString(), color: "#d4d4d8" },
                   {
                     label: "Avg Crash",
-                    value: history.length > 0
-                      ? `${(history.reduce((s, r) => s + r.crashPoint, 0) / history.length / 100).toFixed(1)}x`
-                      : "—",
+                    value: pStats.avgCrash > 0 ? `${pStats.avgCrash.toFixed(1)}x` : "—",
                     color: "#facc15",
                   },
                   {
                     label: "Max",
-                    value: history.length > 0
-                      ? `${(Math.max(...history.map((r) => r.crashPoint)) / 100).toFixed(1)}x`
-                      : "—",
+                    value: pStats.maxCrash > 0 ? `${pStats.maxCrash.toFixed(1)}x` : "—",
                     color: "#e879f9",
                   },
                 ].map((stat) => (
@@ -133,7 +136,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Human vs AI scoreboard */}
+            {/* Human vs AI scoreboard — persisted */}
             <div
               className="rounded-xl px-3 py-2.5"
               style={{
@@ -148,17 +151,17 @@ export default function Home() {
                 <div className="flex-1 text-center py-2 rounded-lg" style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.15)" }}>
                   <div className="text-xs text-blue-400 font-semibold mb-0.5">You</div>
                   <div className="text-lg font-black text-blue-300 font-mono leading-none">
-                    {state.bets.filter((b) => !b.isAgent && b.cashOutMultiplier).length}
+                    {pStats.humanWins}
                   </div>
-                  <div className="text-xs text-zinc-500">wins</div>
+                  <div className="text-xs text-zinc-500">{pStats.humanWins}W {pStats.humanLosses}L</div>
                 </div>
                 <div className="text-xs text-zinc-600 font-bold">VS</div>
                 <div className="flex-1 text-center py-2 rounded-lg" style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.15)" }}>
                   <div className="text-xs text-purple-400 font-semibold mb-0.5">Claude</div>
                   <div className="text-lg font-black text-purple-300 font-mono leading-none">
-                    {state.bets.filter((b) => b.isAgent && b.cashOutMultiplier).length}
+                    {pStats.aiWins}
                   </div>
-                  <div className="text-xs text-zinc-500">wins</div>
+                  <div className="text-xs text-zinc-500">{pStats.aiWins}W {pStats.aiLosses}L</div>
                 </div>
               </div>
             </div>
@@ -167,24 +170,24 @@ export default function Home() {
 
         {/* Provably fair footer */}
         <div
-          className="flex items-center justify-between px-3 py-2 rounded-lg text-xs"
+          className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs"
           style={{
             background: "rgba(255,255,255,0.02)",
             border: "1px solid rgba(255,255,255,0.04)",
           }}
         >
-          <div className="flex items-center gap-2 text-zinc-400">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <div className="flex items-center gap-2 text-zinc-400 min-w-0">
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
             </svg>
-            <span>Provably fair — commit-reveal on-chain</span>
+            <span className="whitespace-nowrap">Provably fair</span>
             {state.commitHash && (
               <span className="font-mono text-zinc-500 hidden sm:inline">
                 {state.commitHash.slice(0, 10)}...
               </span>
             )}
           </div>
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 flex-shrink-0">
             <a
               href="https://testnet.opbnbscan.com/address/0x37E04515eD142A824c853CC74a76Cb9E0119CfFe"
               target="_blank"

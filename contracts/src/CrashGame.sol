@@ -27,7 +27,7 @@ contract CrashGame {
     address public operator;
     address public agentAddress;
     uint256 public currentRoundId;
-    uint256 public constant MIN_BET = 0.001 ether;
+    uint256 public constant MIN_BET = 0.0001 ether;
     uint256 public constant MAX_BET = 10 ether;
     uint256 public constant BETTING_DURATION = 15 seconds;
 

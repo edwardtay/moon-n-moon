@@ -308,7 +308,7 @@ function CrashDisplayInner({
       ref={containerRef}
       className={`relative rounded-2xl overflow-hidden w-full ${shaking ? "animate-screen-shake" : ""}`}
       style={{
-        height: "420px",
+        height: "340px",
         background:
           phase === "crashed"
             ? "linear-gradient(180deg, rgba(100,10,10,0.2) 0%, #060608 60%)"

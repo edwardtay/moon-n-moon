@@ -39,7 +39,6 @@ export function BetPanel({
   const hasCashedOut =
     myBet?.cashOutMultiplier !== null && myBet?.cashOutMultiplier !== undefined;
 
-  // Trigger celebration animation on cash-out
   useEffect(() => {
     if (hasCashedOut && !prevCashedOutRef.current) {
       setShowCelebration(true);
@@ -53,8 +52,6 @@ export function BetPanel({
     setLoading(true);
     try {
       const amount = parseFloat(betAmount);
-      // Instant off-chain bet — no wallet signature needed.
-      // On-chain proof is handled by the operator wallet (commit-reveal).
       await placeBet(address, amount);
     } finally {
       setLoading(false);
@@ -78,34 +75,19 @@ export function BetPanel({
 
   if (!isConnected) {
     return (
-      <div className="glass-card rounded-2xl p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-zinc-300 tracking-wide">
+      <div className="glass-card rounded-xl p-4 space-y-3">
+        <h3 className="text-xs font-semibold text-zinc-400 tracking-wide">
           How to play
         </h3>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {[
-            {
-              step: "1",
-              label: "Place a bet",
-              desc: "Choose your BNB amount when betting opens",
-              color: "#facc15",
-            },
-            {
-              step: "2",
-              label: "Watch it grow",
-              desc: "The multiplier climbs — 1.5x, 2x, 5x...",
-              color: "#34d399",
-            },
-            {
-              step: "3",
-              label: "Cash out in time",
-              desc: "Hit cash out before it crashes. Beat Claude!",
-              color: "#f87171",
-            },
+            { step: "1", label: "Bet BNB", color: "#facc15" },
+            { step: "2", label: "Watch it grow", color: "#34d399" },
+            { step: "3", label: "Cash out before crash", color: "#f87171" },
           ].map((item) => (
-            <div key={item.step} className="flex items-start gap-3">
+            <div key={item.step} className="flex items-center gap-2.5 text-xs">
               <div
-                className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
+                className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0"
                 style={{
                   background: `${item.color}15`,
                   color: item.color,
@@ -114,41 +96,22 @@ export function BetPanel({
               >
                 {item.step}
               </div>
-              <div>
-                <div className="text-sm font-medium text-zinc-200">
-                  {item.label}
-                </div>
-                <div className="text-xs text-zinc-300">{item.desc}</div>
-              </div>
+              <span className="text-zinc-300">{item.label}</span>
             </div>
           ))}
         </div>
-        <div className="pt-2">
-          <div className="text-center text-xs text-zinc-400 mb-2">
-            Connect wallet to start playing
-          </div>
-          <div className="h-px bg-gradient-to-r from-transparent via-zinc-800 to-transparent" />
+        <div className="text-center text-[10px] text-zinc-500 pt-1">
+          Connect wallet to play
         </div>
       </div>
     );
   }
 
   return (
-    <div className="glass-card rounded-2xl p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-zinc-300 tracking-wide">
-          Your bet
-        </h3>
-        {phase === "betting" && (
-          <span className="text-[10px] font-mono text-amber-400 animate-pulse">
-            OPEN
-          </span>
-        )}
-      </div>
-
-      {/* Bet amount input */}
-      <div className="space-y-2">
-        <div className="relative">
+    <div className="glass-card rounded-xl p-4 space-y-3">
+      {/* Bet input row */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
           <Input
             type="number"
             step="0.01"
@@ -157,31 +120,31 @@ export function BetPanel({
             value={betAmount}
             onChange={(e) => setBetAmount(e.target.value)}
             disabled={hasBet || (phase !== "betting" && phase !== "waiting")}
-            className="bg-black/40 border-white/[0.06] text-lg h-12 pr-16 font-mono focus:border-emerald-500/30 focus:ring-emerald-500/10"
+            className="bg-black/40 border-white/[0.06] text-sm h-10 pr-12 font-mono focus:border-emerald-500/30 focus:ring-emerald-500/10"
             placeholder="0.01"
           />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-semibold">
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 text-[10px] font-semibold">
             BNB
           </span>
         </div>
+      </div>
 
-        {/* Quick bet buttons */}
-        <div className="flex gap-1.5">
-          {QUICK_BETS.map((amt) => (
-            <button
-              key={amt}
-              onClick={() => setBetAmount(String(amt))}
-              disabled={hasBet || phase !== "betting"}
-              className="flex-1 py-2 rounded-lg text-zinc-400 text-xs font-mono font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/[0.06] active:scale-95"
-              style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.06)",
-              }}
-            >
-              {amt}
-            </button>
-          ))}
-        </div>
+      {/* Quick bets */}
+      <div className="flex gap-1">
+        {QUICK_BETS.map((amt) => (
+          <button
+            key={amt}
+            onClick={() => setBetAmount(String(amt))}
+            disabled={hasBet || phase !== "betting"}
+            className="flex-1 py-1.5 rounded-lg text-zinc-500 text-[10px] font-mono font-medium transition-all disabled:opacity-20 disabled:cursor-not-allowed hover:bg-white/[0.06] active:scale-95"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            {amt}
+          </button>
+        ))}
       </div>
 
       {/* Action button */}
@@ -194,7 +157,7 @@ export function BetPanel({
             !betAmount ||
             parseFloat(betAmount) <= 0
           }
-          className="w-full h-12 text-base font-bold rounded-xl transition-all active:scale-[0.98]"
+          className="w-full h-11 text-sm font-bold rounded-xl transition-all active:scale-[0.98]"
           style={{
             background:
               phase === "betting"
@@ -216,11 +179,12 @@ export function BetPanel({
               ? "Placing..."
               : "Place Bet"
             : phase === "waiting"
-              ? "Waiting for round..."
+              ? "Waiting..."
               : "Round in progress"}
         </Button>
       )}
 
+      {/* Cash out — big and urgent */}
       {hasBet && !hasCashedOut && phase === "active" && (
         <Button
           onClick={handleCashOut}
@@ -234,40 +198,28 @@ export function BetPanel({
             animation: "glow-pulse 1.5s ease-in-out infinite",
           }}
         >
-          {loading ? "Cashing out..." : `Cash Out — ${potentialWin} BNB${toUsd && potentialWin ? ` (${toUsd(parseFloat(potentialWin))})` : ""}`}
+          {loading ? "..." : `CASH OUT ${potentialWin}`}
+          {toUsd && potentialWin && (
+            <span className="text-xs font-medium ml-1 opacity-80">
+              ({toUsd(parseFloat(potentialWin))})
+            </span>
+          )}
         </Button>
       )}
 
+      {/* Win result */}
       {hasBet && hasCashedOut && (
         <div
-          className={`text-center py-4 rounded-xl relative overflow-hidden ${showCelebration ? "animate-profit-pop" : ""}`}
+          className={`text-center py-3 rounded-xl relative overflow-hidden ${showCelebration ? "animate-profit-pop" : ""}`}
           style={{
             background: "rgba(16,185,129,0.08)",
             border: "1px solid rgba(16,185,129,0.15)",
           }}
         >
-          {showCelebration && (
-            <>
-              {[...Array(8)].map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute text-sm pointer-events-none"
-                  style={{
-                    left: `${10 + Math.random() * 80}%`,
-                    top: "50%",
-                    animation: `confetti-fall 1.5s ease-out forwards`,
-                    animationDelay: `${i * 0.08}s`,
-                  }}
-                >
-                  {["✨", "🎉", "💰", "🔥"][i % 4]}
-                </div>
-              ))}
-            </>
-          )}
           <div className="text-emerald-400 font-bold text-lg">
             {((myBet!.cashOutMultiplier ?? 0) / 100).toFixed(2)}x
           </div>
-          <div className="text-emerald-300/80 text-sm font-mono">
+          <div className="text-emerald-300/80 text-xs font-mono">
             +{myBet!.profit?.toFixed(4)} BNB
             {toUsd && myBet!.profit != null && (
               <span className="text-emerald-400/50 ml-1">({toUsd(myBet!.profit)})</span>
@@ -276,16 +228,17 @@ export function BetPanel({
         </div>
       )}
 
+      {/* Bust result */}
       {hasBet && !hasCashedOut && phase === "crashed" && (
         <div
-          className="text-center py-4 rounded-xl animate-screen-shake"
+          className="text-center py-3 rounded-xl animate-screen-shake"
           style={{
             background: "rgba(248,113,113,0.08)",
             border: "1px solid rgba(248,113,113,0.15)",
           }}
         >
-          <div className="text-red-400 font-bold text-lg">Busted 💀</div>
-          <div className="text-red-300/80 text-sm font-mono">
+          <div className="text-red-400 font-bold text-base">Busted</div>
+          <div className="text-red-300/80 text-xs font-mono">
             -{myBet!.amount.toFixed(4)} BNB
             {toUsd && (
               <span className="text-red-400/50 ml-1">({toUsd(myBet!.amount)})</span>
@@ -294,48 +247,39 @@ export function BetPanel({
         </div>
       )}
 
-      {/* Current bets list */}
+      {/* Live bets — compact list */}
       {bets.length > 0 && (
-        <div className="space-y-1.5">
-          <div className="text-[10px] text-zinc-400 font-semibold uppercase tracking-[0.15em]">
-            Players this round
+        <div className="space-y-1 pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+          <div className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider">
+            Live bets
           </div>
-          <div className="max-h-32 overflow-y-auto game-scrollbar space-y-1">
+          <div className="max-h-24 overflow-y-auto game-scrollbar space-y-0.5">
             {bets.map((bet) => (
               <div
                 key={bet.address}
-                className="flex items-center justify-between py-1.5 px-2 rounded-lg text-xs"
+                className="flex items-center justify-between py-1 px-1.5 rounded text-[10px]"
                 style={{
                   background: bet.isAgent
-                    ? "rgba(232,121,249,0.06)"
-                    : "rgba(255,255,255,0.02)",
-                  border: bet.isAgent
-                    ? "1px solid rgba(232,121,249,0.1)"
-                    : "1px solid transparent",
+                    ? "rgba(168,85,247,0.05)"
+                    : "transparent",
                 }}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   {bet.isAgent ? (
-                    <span
-                      className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                      style={{
-                        background: "rgba(168,85,247,0.2)",
-                        color: "#c084fc",
-                      }}
-                    >
+                    <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-purple-500/20 text-purple-400">
                       AI
                     </span>
                   ) : (
-                    <span className="text-zinc-400">●</span>
+                    <span className="text-zinc-600">&#x25CF;</span>
                   )}
-                  <span className="text-zinc-300 font-mono">
+                  <span className="text-zinc-500 font-mono">
                     {bet.isAgent
                       ? "Claude"
-                      : `${bet.address.slice(0, 6)}...${bet.address.slice(-4)}`}
+                      : `${bet.address.slice(0, 4)}..${bet.address.slice(-3)}`}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 font-mono">
-                  <span className="text-zinc-400">{bet.amount}</span>
+                <div className="flex items-center gap-1.5 font-mono">
+                  <span className="text-zinc-500">{bet.amount}</span>
                   {bet.cashOutMultiplier && (
                     <span className="text-emerald-400 font-semibold">
                       {(bet.cashOutMultiplier / 100).toFixed(2)}x

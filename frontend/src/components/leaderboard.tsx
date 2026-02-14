@@ -20,7 +20,6 @@ export function Leaderboard({ bets, phase, toUsd }: LeaderboardProps) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const processedRoundRef = useRef(0);
 
-  // Accumulate stats when rounds resolve
   useEffect(() => {
     if (phase !== "crashed") return;
 
@@ -54,72 +53,91 @@ export function Leaderboard({ bets, phase, toUsd }: LeaderboardProps) {
     });
   }, [phase, bets]);
 
-  const agentEntry = entries.find((e) => e.isAgent);
-  const humanEntries = entries.filter((e) => !e.isAgent);
-  const agentRank = agentEntry
-    ? entries.indexOf(agentEntry) + 1
-    : null;
+  if (entries.length === 0) {
+    return (
+      <div
+        className="rounded-xl px-3 py-3 text-center text-[10px] text-zinc-600"
+        style={{
+          background: "rgba(255,255,255,0.02)",
+          border: "1px solid rgba(255,255,255,0.04)",
+        }}
+      >
+        Leaderboard — play a round to appear
+      </div>
+    );
+  }
 
   return (
-    <div className="glass-card rounded-2xl p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[10px] font-semibold text-zinc-300 uppercase tracking-[0.2em]">
+    <div
+      className="rounded-xl px-3 py-2.5"
+      style={{
+        background: "rgba(255,255,255,0.02)",
+        border: "1px solid rgba(255,255,255,0.04)",
+      }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[9px] font-semibold text-zinc-500 uppercase tracking-wider">
           Leaderboard
-        </h3>
-        {agentRank && (
-          <span className="text-[10px] text-fuchsia-400/70">
-            AI is #{agentRank} of {entries.length}
-          </span>
-        )}
+        </span>
+        <span className="text-[9px] text-zinc-600 font-mono">
+          {entries.length} player{entries.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
-      {entries.length === 0 ? (
-        <div className="text-xs text-zinc-400 text-center py-4">
-          Play a round to appear on the leaderboard
-        </div>
-      ) : (
-        <div className="space-y-1">
-          {entries.slice(0, 10).map((entry, i) => (
-            <div
-              key={entry.address}
-              className={`flex items-center justify-between py-2 px-2.5 rounded text-xs ${
-                entry.isAgent
-                  ? "bg-fuchsia-950/30 border border-fuchsia-900/30"
-                  : "bg-zinc-800/50"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className={`w-5 font-bold ${i === 0 ? "text-yellow-400" : i === 1 ? "text-zinc-400" : i === 2 ? "text-orange-400" : "text-zinc-400"}`}>
-                  {i + 1}.
-                </span>
-                {entry.isAgent ? (
-                  <span className="text-[10px] font-bold bg-fuchsia-600 text-white px-1.5 py-0.5 rounded">
-                    Claude AI
-                  </span>
-                ) : (
-                  <span className="text-zinc-400 font-mono">
-                    {entry.address.slice(0, 6)}...{entry.address.slice(-4)}
-                  </span>
-                )}
-                <span className="text-zinc-400">
-                  {entry.roundsPlayed}r
-                </span>
-              </div>
+      <div className="space-y-0.5 max-h-40 overflow-y-auto game-scrollbar">
+        {entries.slice(0, 8).map((entry, i) => (
+          <div
+            key={entry.address}
+            className="flex items-center justify-between py-1.5 px-2 rounded text-[10px]"
+            style={{
+              background: entry.isAgent
+                ? "rgba(168,85,247,0.06)"
+                : i === 0
+                  ? "rgba(250,204,21,0.04)"
+                  : "transparent",
+            }}
+          >
+            <div className="flex items-center gap-1.5">
               <span
-                className={`font-mono font-bold ${entry.totalProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}
+                className="w-4 font-bold text-right"
+                style={{
+                  color:
+                    i === 0
+                      ? "#facc15"
+                      : i === 1
+                        ? "#a1a1aa"
+                        : i === 2
+                          ? "#fb923c"
+                          : "#52525b",
+                }}
               >
-                {entry.totalProfit >= 0 ? "+" : ""}
-                {entry.totalProfit.toFixed(4)}
-                {toUsd && (
-                  <span className="text-zinc-400 font-normal ml-1 text-[10px]">
-                    ({toUsd(Math.abs(entry.totalProfit))})
-                  </span>
-                )}
+                {i + 1}
+              </span>
+              {entry.isAgent ? (
+                <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-purple-500/20 text-purple-400">
+                  Claude
+                </span>
+              ) : (
+                <span className="text-zinc-500 font-mono">
+                  {entry.address.slice(0, 4)}..{entry.address.slice(-3)}
+                </span>
+              )}
+              <span className="text-zinc-600 text-[9px]">
+                {entry.roundsPlayed}r
               </span>
             </div>
-          ))}
-        </div>
-      )}
+            <span
+              className="font-mono font-bold"
+              style={{
+                color: entry.totalProfit >= 0 ? "#34d399" : "#f87171",
+              }}
+            >
+              {entry.totalProfit >= 0 ? "+" : ""}
+              {entry.totalProfit.toFixed(3)}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

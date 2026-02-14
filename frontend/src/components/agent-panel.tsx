@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { PlayerBet, RoundPhase, RoundHistory } from "@/hooks/use-game-stream";
-import { AIEyeMascot } from "./mascots";
 
-interface AgentPanelProps {
+interface AgentStripProps {
   phase: RoundPhase;
   bets: PlayerBet[];
   multiplier: number;
@@ -19,14 +18,14 @@ interface AgentRecord {
   totalProfit: number;
 }
 
-export function AgentPanel({
+export function AgentStrip({
   phase,
   bets,
   multiplier,
   history,
   thinking,
   toUsd,
-}: AgentPanelProps) {
+}: AgentStripProps) {
   const agentBet = bets.find((b) => b.isAgent);
   const [record, setRecord] = useState<AgentRecord>({
     wins: 0,
@@ -71,11 +70,11 @@ export function AgentPanel({
       return "Idle";
     }
     if (agentBet.cashOutMultiplier) {
-      return `Cashed out at ${(agentBet.cashOutMultiplier / 100).toFixed(2)}x`;
+      return `Out @ ${(agentBet.cashOutMultiplier / 100).toFixed(2)}x`;
     }
     if (phase === "active") return "Holding...";
     if (phase === "crashed") return "Busted";
-    return "Bet placed";
+    return "In";
   };
 
   const statusColor = () => {
@@ -87,84 +86,59 @@ export function AgentPanel({
   };
 
   return (
-    <div className="glass-card rounded-2xl p-5 space-y-3">
-      <div className="flex items-center gap-2">
-        <AIEyeMascot size={24} animate={phase === "active" || phase === "betting"} />
-        <span className="text-[10px] font-semibold text-purple-400/80 uppercase tracking-[0.2em]">
-          Claude AI
-        </span>
-        <span className="ml-auto text-[10px] text-zinc-400 font-mono">
-          {record.wins}W {record.losses}L
-        </span>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div>
+    <div
+      className="rounded-xl px-3 py-2.5"
+      style={{
+        background: "rgba(168,85,247,0.04)",
+        border: "1px solid rgba(168,85,247,0.1)",
+      }}
+    >
+      {/* Main row: AI status */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <div
-            className="text-lg font-bold"
+            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+            style={{
+              background: statusColor(),
+              boxShadow: `0 0 6px ${statusColor()}`,
+            }}
+          />
+          <span className="text-[10px] font-bold text-purple-400/80 uppercase tracking-wider">
+            Claude
+          </span>
+          <span
+            className="text-xs font-semibold truncate"
             style={{ color: statusColor() }}
           >
             {statusText()}
-          </div>
+          </span>
           {agentBet && (
-            <div className="text-xs text-zinc-300 font-mono mt-0.5">
-              {agentBet.amount.toFixed(4)} BNB
-              {toUsd && <span className="text-zinc-400 ml-1">({toUsd(agentBet.amount)})</span>}
-              {agentBet.profit !== null && (
-                <span
-                  style={{
-                    color: agentBet.profit >= 0 ? "#34d399" : "#f87171",
-                  }}
-                >
-                  {" "}
-                  ({agentBet.profit >= 0 ? "+" : ""}
-                  {agentBet.profit.toFixed(4)})
-                </span>
-              )}
-            </div>
+            <span className="text-[10px] text-zinc-500 font-mono flex-shrink-0">
+              {agentBet.amount.toFixed(3)}
+            </span>
           )}
         </div>
-
-        {phase === "active" && agentBet && !agentBet.cashOutMultiplier && (
-          <div className="text-right">
-            <div className="text-[10px] text-zinc-400">Potential</div>
-            <div className="text-sm font-mono font-bold text-amber-400">
-              {((agentBet.amount * multiplier) / 100).toFixed(4)}
-            </div>
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0 text-[10px] font-mono">
+          <span className="text-zinc-500">
+            {record.wins}W {record.losses}L
+          </span>
+          {(record.wins > 0 || record.losses > 0) && (
+            <span
+              className="font-bold"
+              style={{ color: record.totalProfit >= 0 ? "#34d399" : "#f87171" }}
+            >
+              {record.totalProfit >= 0 ? "+" : ""}
+              {record.totalProfit.toFixed(3)}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Thinking — displayed prominently */}
+      {/* AI thinking — single line */}
       {thinking && (
-        <div
-          className="rounded-xl px-3 py-2.5 mt-1"
-          style={{
-            background: "rgba(168,85,247,0.04)",
-            border: "1px solid rgba(168,85,247,0.08)",
-          }}
-        >
-          <p className="text-xs text-zinc-400 italic leading-relaxed">
-            &ldquo;{thinking}&rdquo;
-          </p>
-        </div>
-      )}
-
-      {/* Session P&L */}
-      {(record.wins > 0 || record.losses > 0) && (
-        <div className="flex items-center justify-between text-xs pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-          <span className="text-zinc-400">Session P&L</span>
-          <span
-            className="font-mono font-bold"
-            style={{
-              color: record.totalProfit >= 0 ? "#34d399" : "#f87171",
-            }}
-          >
-            {record.totalProfit >= 0 ? "+" : ""}
-            {record.totalProfit.toFixed(4)} BNB
-            {toUsd && <span className="text-zinc-400 ml-1">({toUsd(Math.abs(record.totalProfit))})</span>}
-          </span>
-        </div>
+        <p className="text-[10px] text-zinc-500 italic mt-1.5 truncate leading-tight">
+          &ldquo;{thinking}&rdquo;
+        </p>
       )}
     </div>
   );

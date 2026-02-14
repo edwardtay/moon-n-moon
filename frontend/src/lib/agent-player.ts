@@ -481,7 +481,11 @@ function runFallback() {
 
   bet = Math.round(bet * 10000) / 10000;
   state.targetCashOut = target;
-  const success = gameEngine.placeBet(AGENT_ADDRESS(), bet, true);
+  const addr = AGENT_ADDRESS();
+  const phase = gameEngine.getState().phase;
+  console.log(`[agent] runFallback placeBet attempt: addr=${addr}, bet=${bet}, phase=${phase}, existingBets=${gameEngine.getState().bets.length}`);
+  const success = gameEngine.placeBet(addr, bet, true);
+  console.log(`[agent] placeBet result: ${success}`);
   if (success) {
     state.currentBet = bet;
     state.balance -= bet;
@@ -521,6 +525,7 @@ export function startAgent() {
 }
 
 async function handleBettingPhase() {
+  console.log(`[agent] handleBettingPhase called, existing bet: ${state.currentBet}`);
   state.currentBet = null;
   state.targetCashOut = null;
   await runAgentLoop();

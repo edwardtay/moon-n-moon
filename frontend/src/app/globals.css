@@ -137,6 +137,9 @@
 }
 
 @layer base {
+  html {
+    font-size: 18px; /* 112.5% — scales all rem-based Tailwind sizes up ~12% */
+  }
   * {
     @apply border-border outline-ring/50;
   }

@@ -116,7 +116,7 @@ function CrashDisplayInner({
       ctx.strokeStyle = "rgba(255,255,255,0.04)";
       ctx.lineWidth = 1;
       const ySteps = getYSteps(maxM);
-      ctx.font = "10px monospace";
+      ctx.font = "12px monospace";
       ctx.fillStyle = "rgba(255,255,255,0.35)";
       ctx.textAlign = "right";
       for (const step of ySteps) {
@@ -471,7 +471,7 @@ function CrashDisplayInner({
       {/* Phase pill */}
       <div className="absolute top-3 left-3 z-20">
         <div
-          className="text-[10px] font-bold uppercase tracking-[0.2em] px-2.5 py-1 rounded-full flex items-center gap-1.5"
+          className="text-xs font-bold uppercase tracking-[0.2em] px-2.5 py-1 rounded-full flex items-center gap-1.5"
           style={{
             background:
               phase === "active"

@@ -114,7 +114,7 @@ export function Leaderboard({ bets, phase, toUsd }: LeaderboardProps) {
                 {i + 1}
               </span>
               {entry.isAgent ? (
-                <span className="text-[10px] font-bold px-1 py-0.5 rounded bg-purple-500/20 text-purple-300">
+                <span className="text-xs font-bold px-1 py-0.5 rounded bg-purple-500/20 text-purple-300">
                   Claude
                 </span>
               ) : (
@@ -122,7 +122,7 @@ export function Leaderboard({ bets, phase, toUsd }: LeaderboardProps) {
                   {entry.address.slice(0, 4)}..{entry.address.slice(-3)}
                 </span>
               )}
-              <span className="text-zinc-500 text-[10px]">
+              <span className="text-zinc-400 text-xs">
                 {entry.roundsPlayed}r
               </span>
             </div>

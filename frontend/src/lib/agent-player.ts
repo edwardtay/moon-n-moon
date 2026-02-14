@@ -276,7 +276,7 @@ Your record: ${state.wins}W-${state.losses}L (P&L: ${state.totalProfit >= 0 ? "+
       },
       body: JSON.stringify({
         model: "anthropic/claude-sonnet-4",
-        max_tokens: 400,
+        max_tokens: 200,
         tools: TOOLS,
         tool_choice: "auto",
         messages,
@@ -338,7 +338,7 @@ Your record: ${state.wins}W-${state.losses}L (P&L: ${state.totalProfit >= 0 ? "+
         },
         body: JSON.stringify({
           model: "anthropic/claude-sonnet-4",
-          max_tokens: 300,
+          max_tokens: 150,
           tools: TOOLS,
           tool_choice: "auto",
           messages,

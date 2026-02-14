@@ -18,10 +18,6 @@ const opBNBTestnet = defineChain({
   testnet: true,
 });
 
-const AGENT_KEY = process.env.AGENT_PRIVATE_KEY as `0x${string}` | undefined;
-const OPBNB_CONTRACT = process.env.NEXT_PUBLIC_CRASH_GAME_ADDRESS as `0x${string}` | undefined;
-const BSC_CONTRACT = process.env.NEXT_PUBLIC_CRASH_GAME_ADDRESS_BSC as `0x${string}` | undefined;
-
 interface ChainTarget {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any;
@@ -31,50 +27,62 @@ interface ChainTarget {
   disabled: boolean;
 }
 
+let initialized = false;
 let agentAddress: string | null = null;
 const targets: ChainTarget[] = [];
 
 function init() {
-  if (targets.length > 0 || !AGENT_KEY) return;
+  if (initialized) return;
+  initialized = true;
 
-  const account = privateKeyToAccount(AGENT_KEY);
+  // Read env vars lazily at runtime, not at module load (critical for Vercel SSG)
+  const agentKey = process.env.AGENT_PRIVATE_KEY as `0x${string}` | undefined;
+  const opbnbContract = process.env.NEXT_PUBLIC_CRASH_GAME_ADDRESS as `0x${string}` | undefined;
+  const bscContract = process.env.NEXT_PUBLIC_CRASH_GAME_ADDRESS_BSC as `0x${string}` | undefined;
+
+  if (!agentKey) {
+    console.log("[agent-chain] No AGENT_PRIVATE_KEY — on-chain agent bets disabled");
+    return;
+  }
+
+  const account = privateKeyToAccount(agentKey);
   agentAddress = account.address;
   console.log(`[agent-chain] Agent wallet: ${agentAddress}`);
 
-  if (OPBNB_CONTRACT) {
+  if (opbnbContract) {
     targets.push({
       client: createWalletClient({
         account,
         chain: opBNBTestnet,
         transport: http("https://opbnb-testnet-rpc.bnbchain.org"),
       }),
-      contract: OPBNB_CONTRACT,
+      contract: opbnbContract,
       label: "opBNB",
       failures: 0,
       disabled: false,
     });
   }
 
-  if (BSC_CONTRACT) {
+  if (bscContract) {
     targets.push({
       client: createWalletClient({
         account,
         chain: bscTestnet,
         transport: http("https://data-seed-prebsc-1-s1.bnbchain.org:8545"),
       }),
-      contract: BSC_CONTRACT,
+      contract: bscContract,
       label: "BSC",
       failures: 0,
       disabled: false,
     });
   }
+
+  console.log(`[agent-chain] Initialized ${targets.length} chain(s)`);
 }
 
 export function getAgentWalletAddress(): string | null {
-  if (!AGENT_KEY) return null;
-  if (!agentAddress) {
-    agentAddress = privateKeyToAccount(AGENT_KEY).address;
-  }
+  init();
+  if (!agentAddress) return null;
   return agentAddress;
 }
 
@@ -86,7 +94,9 @@ export async function agentOnChainBet(amountBNB: number): Promise<void> {
   init();
   if (targets.length === 0) return;
 
-  const value = parseEther(amountBNB.toFixed(18));
+  // Cap on-chain bet to 0.0001 tBNB to preserve testnet funds
+  const cappedAmount = Math.min(amountBNB, 0.0001);
+  const value = parseEther(cappedAmount.toFixed(18));
 
   await Promise.allSettled(
     targets
@@ -146,5 +156,6 @@ export async function agentClaimWinnings(roundId: number): Promise<void> {
 }
 
 export function isAgentChainEnabled(): boolean {
-  return !!AGENT_KEY && (!!OPBNB_CONTRACT || !!BSC_CONTRACT);
+  init();
+  return targets.length > 0;
 }

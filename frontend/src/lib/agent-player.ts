@@ -483,9 +483,13 @@ function runFallback() {
   state.targetCashOut = target;
   const addr = AGENT_ADDRESS();
   const phase = gameEngine.getState().phase;
-  console.log(`[agent] runFallback placeBet attempt: addr=${addr}, bet=${bet}, phase=${phase}, existingBets=${gameEngine.getState().bets.length}`);
+  const existingBets = gameEngine.getState().bets.length;
+  const alreadyBet = gameEngine.getState().bets.some((b: { address: string }) => b.address === addr);
+  console.log(`[agent] placeBet: addr=${addr.slice(0,10)}, phase=${phase}, bets=${existingBets}, dup=${alreadyBet}`);
   const success = gameEngine.placeBet(addr, bet, true);
-  console.log(`[agent] placeBet result: ${success}`);
+  if (!success) {
+    setThinking(state.thinking + ` [FAILED: phase=${phase}, bets=${existingBets}, dup=${alreadyBet}]`);
+  }
   if (success) {
     state.currentBet = bet;
     state.balance -= bet;
@@ -503,10 +507,15 @@ function runFallback() {
 
 /**
  * Start the agent — subscribes to game events.
+ * Uses globalThis guard to prevent duplicate subscribers across module reloads.
  */
+const globalForAgent = globalThis as unknown as { __agentRunning?: boolean };
+
 export function startAgent() {
-  if (state.running) return;
+  // Guard against both module-scoped AND globalThis duplicate starts
+  if (state.running || globalForAgent.__agentRunning) return;
   state.running = true;
+  globalForAgent.__agentRunning = true;
   console.log("[agent] Agent started — listening for game events");
 
   gameEngine.subscribe((event: GameEvent) => {

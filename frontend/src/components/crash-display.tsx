@@ -11,6 +11,7 @@ interface CrashDisplayProps {
   countdown: number;
   roundId: number;
   startTime: number | null;
+  onTick?: (multiplier: number) => void;
 }
 
 function getColor(m: number) {
@@ -38,6 +39,7 @@ function CrashDisplayInner({
   countdown,
   roundId,
   startTime,
+  onTick,
 }: CrashDisplayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -291,6 +293,9 @@ function CrashDisplayInner({
         setShowRocket(false);
       }
 
+      // Sound tick
+      onTick?.(localMult);
+
       drawCanvas(localMult, false, null);
       animFrameRef.current = requestAnimationFrame(loop);
     };
@@ -299,16 +304,16 @@ function CrashDisplayInner({
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [phase, startTime, crashPoint, drawCanvas]);
+  }, [phase, startTime, crashPoint, drawCanvas, onTick]);
 
   const color = getColor(serverMultiplier);
 
   return (
     <div
       ref={containerRef}
-      className={`relative rounded-2xl overflow-hidden w-full ${shaking ? "animate-screen-shake" : ""}`}
+      className={`relative rounded-2xl overflow-hidden w-full h-full ${shaking ? "animate-screen-shake" : ""}`}
       style={{
-        height: "340px",
+        minHeight: "340px",
         background:
           phase === "crashed"
             ? "linear-gradient(180deg, rgba(100,10,10,0.2) 0%, #060608 60%)"
@@ -329,13 +334,13 @@ function CrashDisplayInner({
             : "none",
       }}
     >
-      {/* Canvas graph */}
+      {/* Canvas graph — stays visible (faded) during waiting/betting to avoid empty screen */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"
         style={{
-          opacity: phase === "active" || phase === "crashed" ? 1 : 0,
-          transition: "opacity 0.3s",
+          opacity: phase === "active" ? 1 : phase === "crashed" ? 1 : 0.15,
+          transition: "opacity 0.5s",
         }}
       />
 

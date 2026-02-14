@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 
@@ -37,9 +38,11 @@ interface NavbarProps {
   connected?: boolean;
   roundId?: number;
   bnbPrice?: number | null;
+  onToggleSound?: () => boolean;
 }
 
-export function Navbar({ connected, roundId, bnbPrice }: NavbarProps) {
+export function Navbar({ connected, roundId, bnbPrice, onToggleSound }: NavbarProps) {
+  const [soundOn, setSoundOn] = useState(true);
   return (
     <header
       className="flex items-center justify-between px-4 py-2"
@@ -76,7 +79,36 @@ export function Navbar({ connected, roundId, bnbPrice }: NavbarProps) {
           )}
         </div>
       </div>
-      <ConnectButton />
+      <div className="flex items-center gap-2">
+        {onToggleSound && (
+          <button
+            onClick={() => {
+              const result = onToggleSound();
+              setSoundOn(result);
+            }}
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors"
+            style={{ background: "rgba(255,255,255,0.04)" }}
+            title={soundOn ? "Mute" : "Unmute"}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {soundOn ? (
+                <>
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                </>
+              ) : (
+                <>
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <line x1="23" y1="9" x2="17" y2="15" />
+                  <line x1="17" y1="9" x2="23" y2="15" />
+                </>
+              )}
+            </svg>
+          </button>
+        )}
+        <ConnectButton />
+      </div>
     </header>
   );
 }

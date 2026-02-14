@@ -75,32 +75,15 @@ export function BetPanel({
 
   if (!isConnected) {
     return (
-      <div className="glass-card rounded-xl p-3.5 space-y-2.5">
-        <h3 className="text-xs font-semibold text-zinc-100">
-          How to play
-        </h3>
-        <div className="space-y-1.5">
-          {[
-            { step: "1", label: "Bet BNB", color: "#facc15" },
-            { step: "2", label: "Watch it grow", color: "#34d399" },
-            { step: "3", label: "Cash out before crash", color: "#f87171" },
-          ].map((item) => (
-            <div key={item.step} className="flex items-center gap-2 text-xs">
-              <div
-                className="w-5 h-5 rounded flex items-center justify-center text-xs font-bold flex-shrink-0"
-                style={{
-                  background: `${item.color}15`,
-                  color: item.color,
-                  border: `1px solid ${item.color}30`,
-                }}
-              >
-                {item.step}
-              </div>
-              <span className="text-zinc-200">{item.label}</span>
-            </div>
-          ))}
+      <div className="glass-card rounded-xl p-3.5 space-y-2">
+        <div className="flex items-center justify-center gap-2 text-xs text-zinc-300 flex-wrap">
+          <span className="whitespace-nowrap"><span style={{ color: "#facc15" }}>1</span> Bet</span>
+          <span className="text-zinc-600">&rarr;</span>
+          <span className="whitespace-nowrap"><span style={{ color: "#34d399" }}>2</span> Watch</span>
+          <span className="text-zinc-600">&rarr;</span>
+          <span className="whitespace-nowrap"><span style={{ color: "#f87171" }}>3</span> Cash out</span>
         </div>
-        <div className="text-center text-xs text-zinc-400 pt-1">
+        <div className="text-center text-xs text-zinc-400">
           Connect wallet to play
         </div>
       </div>

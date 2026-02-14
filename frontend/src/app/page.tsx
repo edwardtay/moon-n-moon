@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useCallback } from "react";
 import { Navbar } from "@/components/navbar";
 import { CrashDisplay } from "@/components/crash-display";
 import { BetPanel } from "@/components/bet-panel";
@@ -8,11 +9,35 @@ import { RoundHistoryBar } from "@/components/round-history";
 import { Leaderboard } from "@/components/leaderboard";
 import { useGameStream } from "@/hooks/use-game-stream";
 import { useBnbPrice } from "@/hooks/use-bnb-price";
+import { useGameSounds } from "@/hooks/use-game-sounds";
 
 export default function Home() {
   const { state, history, connected, agentThinking, placeBet, cashOut } =
     useGameStream();
   const { price: bnbPrice, toUsd } = useBnbPrice();
+  const sounds = useGameSounds();
+
+  // Sound: phase changes
+  useEffect(() => {
+    sounds.onPhaseChange(state.phase);
+  }, [state.phase, sounds]);
+
+  // Wrap placeBet/cashOut with sound
+  const placeBetWithSound = useCallback(
+    async (address: string, amount: number) => {
+      sounds.onBet();
+      return placeBet(address, amount);
+    },
+    [placeBet, sounds]
+  );
+
+  const cashOutWithSound = useCallback(
+    async (address: string) => {
+      sounds.onCashout();
+      return cashOut(address);
+    },
+    [cashOut, sounds]
+  );
 
   return (
     <div
@@ -23,15 +48,16 @@ export default function Home() {
         connected={connected}
         roundId={state.roundId}
         bnbPrice={bnbPrice}
+        onToggleSound={sounds.toggleSound}
       />
 
-      <main className="flex-1 flex flex-col max-w-6xl mx-auto w-full px-3 py-2 gap-2">
+      <main className="flex-1 flex flex-col max-w-6xl mx-auto w-full px-3 py-2 gap-2 min-h-0">
         {/* Round history */}
         <RoundHistoryBar history={history} />
 
-        {/* Main game grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5">
-          <div className="lg:col-span-8">
+        {/* Main game grid — fills remaining viewport */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 flex-1 min-h-0">
+          <div className="lg:col-span-8 min-h-[340px]">
             <CrashDisplay
               phase={state.phase}
               multiplier={state.multiplier}
@@ -39,6 +65,7 @@ export default function Home() {
               countdown={state.countdown}
               roundId={state.roundId}
               startTime={state.startTime}
+              onTick={sounds.onTick}
             />
           </div>
 
@@ -46,8 +73,8 @@ export default function Home() {
             <BetPanel
               phase={state.phase}
               bets={state.bets}
-              placeBet={placeBet}
-              cashOut={cashOut}
+              placeBet={placeBetWithSound}
+              cashOut={cashOutWithSound}
               multiplier={state.multiplier}
               toUsd={toUsd}
             />

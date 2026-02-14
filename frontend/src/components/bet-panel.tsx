@@ -30,7 +30,9 @@ export function BetPanel({
   const [loading, setLoading] = useState(false);
 
   const [showCelebration, setShowCelebration] = useState(false);
+  const [ghostNotification, setGhostNotification] = useState<string | null>(null);
   const prevCashedOutRef = useRef(false);
+  const seenGhostCashoutsRef = useRef<Set<string>>(new Set());
 
   const myBet = bets.find(
     (b) => b.address.toLowerCase() === address?.toLowerCase()
@@ -46,6 +48,26 @@ export function BetPanel({
     }
     prevCashedOutRef.current = hasCashedOut;
   }, [hasCashedOut]);
+
+  // Detect ghost cashouts and show notifications
+  useEffect(() => {
+    for (const bet of bets) {
+      if (!bet.isGhost || !bet.cashOutMultiplier) continue;
+      const key = `${bet.address}-${bet.cashOutMultiplier}`;
+      if (seenGhostCashoutsRef.current.has(key)) continue;
+      seenGhostCashoutsRef.current.add(key);
+      const addr = `${bet.address.slice(0, 4)}..${bet.address.slice(-2)}`;
+      setGhostNotification(`${addr} cashed out at ${(bet.cashOutMultiplier / 100).toFixed(2)}x!`);
+      setTimeout(() => setGhostNotification(null), 2500);
+    }
+  }, [bets]);
+
+  // Reset seen ghost cashouts when a new round starts
+  useEffect(() => {
+    if (phase === "betting") {
+      seenGhostCashoutsRef.current.clear();
+    }
+  }, [phase]);
 
   const handlePlaceBet = useCallback(async () => {
     if (!address || !betAmount) return;
@@ -236,13 +258,27 @@ export function BetPanel({
         </div>
       )}
 
+      {/* Ghost cashout notification */}
+      {ghostNotification && (
+        <div
+          className="text-xs text-center py-1.5 rounded-lg font-mono animate-profit-pop"
+          style={{
+            background: "rgba(34,197,94,0.08)",
+            border: "1px solid rgba(34,197,94,0.15)",
+            color: "#4ade80",
+          }}
+        >
+          {ghostNotification}
+        </div>
+      )}
+
       {/* Live bets */}
       {bets.length > 0 && (
         <div className="space-y-1 pt-1.5" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">
             Live bets
           </div>
-          <div className="max-h-20 overflow-y-auto game-scrollbar space-y-0.5">
+          <div className="max-h-24 overflow-y-auto game-scrollbar space-y-0.5">
             {bets.map((bet) => (
               <div
                 key={bet.address}
@@ -251,6 +287,7 @@ export function BetPanel({
                   background: bet.isAgent
                     ? "rgba(168,85,247,0.06)"
                     : "transparent",
+                  opacity: bet.isGhost ? 0.5 : 1,
                 }}
               >
                 <div className="flex items-center gap-1.5">
@@ -259,16 +296,16 @@ export function BetPanel({
                       AI
                     </span>
                   ) : (
-                    <span className="text-zinc-500">&#x25CF;</span>
+                    <span className={bet.isGhost ? "text-zinc-600" : "text-zinc-500"}>&#x25CF;</span>
                   )}
-                  <span className="text-zinc-300 font-mono">
+                  <span className={`font-mono ${bet.isGhost ? "text-zinc-500" : "text-zinc-300"}`}>
                     {bet.isAgent
                       ? "Claude"
                       : `${bet.address.slice(0, 4)}..${bet.address.slice(-3)}`}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 font-mono">
-                  <span className="text-zinc-300">{bet.amount}</span>
+                  <span className={bet.isGhost ? "text-zinc-500" : "text-zinc-300"}>{bet.amount}</span>
                   {bet.cashOutMultiplier && (
                     <span className="text-emerald-400 font-semibold">
                       {(bet.cashOutMultiplier / 100).toFixed(2)}x

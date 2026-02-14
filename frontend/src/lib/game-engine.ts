@@ -22,6 +22,7 @@ export interface PlayerBet {
   cashOutMultiplier: number | null; // null = still in / didn't cash out
   profit: number | null;
   isAgent: boolean;
+  isGhost?: boolean;
 }
 
 export interface RoundState {
@@ -55,8 +56,8 @@ export interface GameEvent {
 
 type Listener = (event: GameEvent) => void;
 
-const BETTING_DURATION = 8_000; // 8 seconds — fast enough to maintain energy
-const COUNTDOWN_DURATION = 3_000; // 3 seconds between rounds — keep it snappy
+const BETTING_DURATION = 12_000; // 12 seconds — more time to decide, build anticipation
+const COUNTDOWN_DURATION = 5_000; // 5 seconds between rounds — let the tension breathe
 const TICK_INTERVAL = 50; // 50ms ticks for smooth animation
 
 export interface AgentStats {
@@ -155,7 +156,7 @@ class GameEngine {
     while (this.running) {
       await this.runRound();
       // Brief pause between rounds
-      await this.sleep(1500);
+      await this.sleep(2500);
     }
   }
 
@@ -183,6 +184,9 @@ class GameEngine {
       this._currentCrashPoint,
       this._currentServerSeed
     );
+
+    // Clear ghost state from previous round
+    this.ghostCashouts.clear();
 
     // --- Countdown phase ---
     this.state = {
@@ -231,6 +235,9 @@ class GameEngine {
       data: { roundId, bettingEndsAt, commitHash },
     });
 
+    // Spawn ghost players during betting phase (3-5 simulated players)
+    this.spawnGhostPlayers();
+
     // Wait for betting to close
     await this.sleep(BETTING_DURATION);
     if (!this.running) return;
@@ -260,10 +267,10 @@ class GameEngine {
         }
 
         const elapsed = Date.now() - this.state.startTime!;
-        // multiplier = 1.00 * e^(0.00006 * elapsed)
-        // At 100ms: ~1.006x, at 1s: ~1.06x, at 5s: ~1.35x, at 10s: ~1.82x
+        // multiplier = 1.00 * e^(0.0001 * elapsed)
+        // Faster curve: reaches 2x in ~7s, 3x in ~11s, 5x in ~16s
         const rawMultiplier = Math.floor(
-          100 * Math.exp(0.00006 * elapsed)
+          100 * Math.exp(0.0001 * elapsed)
         );
         this.state.multiplier = rawMultiplier;
 
@@ -274,6 +281,9 @@ class GameEngine {
             elapsed,
           },
         });
+
+        // Process ghost cashouts
+        this.processGhostCashouts(rawMultiplier);
 
         // Check if crashed
         if (rawMultiplier >= this._currentCrashPoint!) {
@@ -401,6 +411,65 @@ class GameEngine {
         ? serverSeedToBytes32(this._currentServerSeed)
         : null,
     };
+  }
+
+  // Ghost players — scheduled cashout multipliers
+  private ghostCashouts: Map<string, number> = new Map();
+
+  private spawnGhostPlayers() {
+    const count = 3 + Math.floor(Math.random() * 3); // 3-5 ghosts
+    for (let i = 0; i < count; i++) {
+      // Random-looking address
+      const addr = `0x${Array.from({ length: 40 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("")}`;
+      const amount = Math.round((0.01 + Math.random() * 0.49) * 100) / 100;
+
+      const bet: PlayerBet = {
+        address: addr,
+        amount,
+        cashOutMultiplier: null,
+        profit: null,
+        isAgent: false,
+        isGhost: true,
+      };
+
+      this.state.bets.push(bet);
+
+      // Schedule a random cashout multiplier (130 to 500 = 1.30x to 5.00x)
+      const target = 130 + Math.floor(Math.random() * 370);
+      this.ghostCashouts.set(addr, target);
+
+      // Stagger ghost bet emissions
+      setTimeout(() => {
+        this.emit({
+          type: "player_bet",
+          data: { address: addr, amount, isAgent: false, isGhost: true, roundId: this.state.roundId },
+        });
+      }, 500 + Math.random() * (BETTING_DURATION - 2000));
+    }
+  }
+
+  private processGhostCashouts(currentMultiplier: number) {
+    for (const [addr, target] of this.ghostCashouts) {
+      if (currentMultiplier >= target) {
+        const bet = this.state.bets.find((b) => b.address === addr);
+        if (bet && bet.cashOutMultiplier === null) {
+          bet.cashOutMultiplier = currentMultiplier;
+          bet.profit = (bet.amount * currentMultiplier) / 100 - bet.amount;
+          this.emit({
+            type: "player_cashout",
+            data: {
+              address: addr,
+              multiplier: currentMultiplier,
+              profit: bet.profit,
+              isAgent: false,
+              isGhost: true,
+              roundId: this.state.roundId,
+            },
+          });
+        }
+        this.ghostCashouts.delete(addr);
+      }
+    }
   }
 
   private sleep(ms: number): Promise<void> {

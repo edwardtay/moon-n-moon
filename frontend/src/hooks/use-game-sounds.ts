@@ -47,7 +47,7 @@ function playCrash() {
   const ctx = getCtx();
   if (!ctx) return;
 
-  // Low rumble noise burst
+  // Low rumble noise burst — louder
   const bufferSize = ctx.sampleRate * 0.5;
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
   const data = buffer.getChannelData(0);
@@ -64,7 +64,7 @@ function playCrash() {
   filter.frequency.value = 300;
 
   const gain = ctx.createGain();
-  gain.gain.value = 0.25;
+  gain.gain.value = 0.35;
   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
 
   noise.connect(filter);
@@ -78,12 +78,57 @@ function playCrash() {
   sub.type = "sine";
   sub.frequency.value = 60;
   sub.frequency.exponentialRampToValueAtTime(20, ctx.currentTime + 0.3);
-  subGain.gain.value = 0.3;
+  subGain.gain.value = 0.35;
   subGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
   sub.connect(subGain);
   subGain.connect(ctx.destination);
   sub.start();
   sub.stop(ctx.currentTime + 0.3);
+
+  // Mid-frequency crunch layer — adds punch
+  const crunchBuf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
+  const crunchData = crunchBuf.getChannelData(0);
+  for (let i = 0; i < crunchBuf.length; i++) {
+    crunchData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.05));
+  }
+  const crunch = ctx.createBufferSource();
+  crunch.buffer = crunchBuf;
+  const crunchFilter = ctx.createBiquadFilter();
+  crunchFilter.type = "bandpass";
+  crunchFilter.frequency.value = 800;
+  crunchFilter.Q.value = 2;
+  const crunchGain = ctx.createGain();
+  crunchGain.gain.value = 0.2;
+  crunchGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+  crunch.connect(crunchFilter);
+  crunchFilter.connect(crunchGain);
+  crunchGain.connect(ctx.destination);
+  crunch.start();
+}
+
+// Heartbeat-like pulse when multiplier > 3x
+let lastHeartbeat = 0;
+function playHeartbeat() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  const now = Date.now();
+  if (now - lastHeartbeat < 600) return; // max ~100bpm
+  lastHeartbeat = now;
+
+  // Double-thump heartbeat
+  [0, 0.12].forEach((delay) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 50;
+    gain.gain.setValueAtTime(0, ctx.currentTime + delay);
+    gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + delay + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime + delay);
+    osc.stop(ctx.currentTime + delay + 0.12);
+  });
 }
 
 function playCashout() {
@@ -186,6 +231,10 @@ export function useGameSounds() {
     if (now - lastTickRef.current > interval) {
       lastTickRef.current = now;
       playTick(multiplier);
+    }
+    // Heartbeat pulse when multiplier > 3x
+    if (multiplier > 300) {
+      playHeartbeat();
     }
   }, []);
 

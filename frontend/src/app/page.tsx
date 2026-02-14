@@ -189,21 +189,19 @@ export default function Home() {
           </div>
           <div className="flex gap-1.5 flex-shrink-0">
             <a
-              href="https://testnet.opbnbscan.com/address/0x12B64dF15e6277e5dD091899F1f00969890E6a3C"
+              href="https://testnet.opbnbscan.com/address/0xa3893b4146912dFA221eC8aFB39A692fE40fEe70"
               target="_blank"
               rel="noopener noreferrer"
               className="font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400/80 border border-amber-500/15 hover:bg-amber-500/20 transition-colors"
             >
               opBNB
             </a>
-            <a
-              href="https://testnet.bscscan.com/address/0x872BAA82E95Fa13488B64577d402D91396de89c8"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono px-1.5 py-0.5 rounded bg-zinc-500/10 text-zinc-300/80 border border-zinc-500/15 hover:bg-zinc-500/20 transition-colors"
+            <span
+              className="font-mono px-1.5 py-0.5 rounded bg-zinc-500/5 text-zinc-600 border border-zinc-500/10 cursor-not-allowed"
+              title="Contract not deployed on BSC"
             >
               BSC
-            </a>
+            </span>
           </div>
         </div>
       </main>

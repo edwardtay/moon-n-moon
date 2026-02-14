@@ -49,6 +49,7 @@ function CrashDisplayInner({
   const canvasSizeRef = useRef({ w: 0, h: 0, dpr: 1 });
   const [shaking, setShaking] = useState(false);
   const [showExplosion, setShowExplosion] = useState(false);
+  const [showVignette, setShowVignette] = useState(false);
   const [showRocket, setShowRocket] = useState(false);
   const prevPhaseRef = useRef<RoundPhase>(phase);
 
@@ -79,8 +80,10 @@ function CrashDisplayInner({
     if (phase === "crashed" && prevPhaseRef.current === "active") {
       setShaking(true);
       setShowExplosion(true);
-      setTimeout(() => setShaking(false), 600);
-      setTimeout(() => setShowExplosion(false), 1200);
+      setShowVignette(true);
+      setTimeout(() => setShaking(false), 800);
+      setTimeout(() => setShowExplosion(false), 1500);
+      setTimeout(() => setShowVignette(false), 1000);
     }
     prevPhaseRef.current = phase;
   }, [phase]);
@@ -259,7 +262,7 @@ function CrashDisplayInner({
 
     const loop = () => {
       const elapsed = Date.now() - startTime;
-      const localMult = Math.floor(100 * Math.exp(0.00006 * elapsed));
+      const localMult = Math.floor(100 * Math.exp(0.0001 * elapsed));
 
       // Record data point throttled to ~20fps (every 50ms)
       const pts = pointsRef.current;
@@ -396,9 +399,9 @@ function CrashDisplayInner({
       {/* Explosion particles */}
       {showExplosion && (
         <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden">
-          {[...Array(12)].map((_, i) => {
-            const angle = (i / 12) * Math.PI * 2;
-            const dist = 60 + Math.random() * 40;
+          {[...Array(20)].map((_, i) => {
+            const angle = (i / 20) * Math.PI * 2;
+            const dist = 80 + Math.random() * 70;
             return (
               <div
                 key={i}
@@ -422,6 +425,16 @@ function CrashDisplayInner({
             );
           })}
         </div>
+      )}
+
+      {/* Red vignette flash on crash */}
+      {showVignette && (
+        <div
+          className="absolute inset-0 z-30 pointer-events-none animate-vignette-flash"
+          style={{
+            background: "radial-gradient(ellipse at center, transparent 40%, rgba(255,0,0,0.4) 100%)",
+          }}
+        />
       )}
 
       {/* Waiting state */}

@@ -10,6 +10,7 @@ export interface PlayerBet {
   cashOutMultiplier: number | null;
   profit: number | null;
   isAgent: boolean;
+  isGhost?: boolean;
 }
 
 export interface GameState {
@@ -135,6 +136,7 @@ export function useGameStream() {
                   cashOutMultiplier: null,
                   profit: null,
                   isAgent: parsed.data.isAgent || false,
+                  isGhost: parsed.data.isGhost || false,
                 },
               ],
             }));

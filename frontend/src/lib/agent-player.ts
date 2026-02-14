@@ -28,6 +28,11 @@ function AGENT_ADDRESS(): string {
   return _resolvedAddress;
 }
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+
+// Rate limiter: max 1 AI call per 10 seconds to prevent runaway costs
+let lastAICallTimestamp = 0;
+const AI_CALL_COOLDOWN = 10_000;
 
 // Agent tools — what Claude can call
 const TOOLS = [
@@ -213,19 +218,94 @@ function analyzeHistory(numRounds: number): string {
 /**
  * Run the agentic loop — Claude calls tools, we execute them.
  */
+/**
+ * Make an AI API call — tries OpenRouter first, then OpenAI as fallback.
+ */
+async function callAI(
+  messages: Array<{ role: string; content: string; tool_call_id?: string; tool_calls?: unknown[] }>,
+  maxTokens: number,
+  signal: AbortSignal,
+): Promise<{ ok: boolean; data?: { choices?: Array<{ message: unknown }> }; error?: string }> {
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  const openAIKey = process.env.OPENAI_API_KEY;
+
+  // Try OpenRouter first
+  if (openRouterKey) {
+    try {
+      const res = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        signal,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${openRouterKey}` },
+        body: JSON.stringify({
+          model: "anthropic/claude-sonnet-4",
+          max_tokens: maxTokens,
+          tools: TOOLS,
+          tool_choice: "auto",
+          messages,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return { ok: true, data };
+      }
+      const status = res.status;
+      console.log(`[agent] OpenRouter failed (${status}), trying OpenAI fallback...`);
+    } catch (err) {
+      console.log("[agent] OpenRouter fetch error:", (err as Error).message?.slice(0, 80));
+    }
+  }
+
+  // Fallback to OpenAI
+  if (openAIKey) {
+    try {
+      const res = await fetch(OPENAI_URL, {
+        method: "POST",
+        signal,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${openAIKey}` },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          max_tokens: maxTokens,
+          tools: TOOLS,
+          tool_choice: "auto",
+          messages,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        console.log("[agent] OpenAI gpt-4o-mini succeeded");
+        return { ok: true, data };
+      }
+      const errText = await res.text().catch(() => "");
+      console.log(`[agent] OpenAI also failed (${res.status}):`, errText.slice(0, 200));
+    } catch (err) {
+      console.log("[agent] OpenAI fetch error:", (err as Error).message?.slice(0, 80));
+    }
+  }
+
+  return { ok: false, error: "All AI providers failed" };
+}
+
 async function runAgentLoop(): Promise<void> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    console.log("[agent] No API key, using fallback");
+  const hasAnyKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+  if (!hasAnyKey) {
+    console.log("[agent] No API keys, using fallback");
     runFallback();
     return;
   }
+
+  // Rate limiter: max 1 AI call per 10 seconds
+  const now = Date.now();
+  if (now - lastAICallTimestamp < AI_CALL_COOLDOWN) {
+    console.log("[agent] Rate limited, using fallback");
+    runFallback();
+    return;
+  }
+  lastAICallTimestamp = now;
 
   console.log("[agent] Starting agentic loop for round decision...");
   setThinking("Analyzing the market...");
 
   // Race the AI call against a 4-second timer.
-  // If AI is too slow, fall back to deterministic strategy before betting window closes.
   const bettingDeadline = Date.now() + 4000;
   const abortController = new AbortController();
 
@@ -234,7 +314,6 @@ async function runAgentLoop(): Promise<void> {
     .map((c) => (c / 100).toFixed(2) + "x")
     .join(", ");
 
-  // Initial messages
   const messages: Array<{
     role: string;
     content: string;
@@ -250,7 +329,7 @@ async function runAgentLoop(): Promise<void> {
       content: `You are Claude, an AI agent playing a live crash game against human players on BNB Chain. You have real tools to analyze data and make decisions.
 
 Game rules:
-- Multiplier starts at 1.00x and grows exponentially (formula: e^(0.00006t))
+- Multiplier starts at 1.00x and grows exponentially (formula: e^(0.0001t))
 - It crashes at a random point — could be 1.00x instant crash or 100x+
 - ~3% instant crash (1.00x), ~33% below 1.5x, ~50% below 2x
 - You bet BNB, then cash out before it crashes to win
@@ -272,142 +351,92 @@ Your record: ${state.wins}W-${state.losses}L (P&L: ${state.totalProfit >= 0 ? "+
   ];
 
   try {
-    // Timeout after 4s — must leave time to actually place the bet
     const timeoutId = setTimeout(() => abortController.abort(), 4000);
 
-    // First API call — Claude should call analyze_history
-    const res1 = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      signal: abortController.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4",
-        max_tokens: 200,
-        tools: TOOLS,
-        tool_choice: "auto",
-        messages,
-      }),
-    });
+    // First API call
+    const result1 = await callAI(messages, 200, abortController.signal);
 
-    if (!res1.ok) {
+    if (!result1.ok || !result1.data) {
       clearTimeout(timeoutId);
-      const errText = await res1.text().catch(() => "");
-      console.log("[agent] OpenRouter error:", res1.status, errText.slice(0, 200));
       runFallback();
       return;
     }
 
-    const data1 = await res1.json();
-    const msg1 = data1.choices?.[0]?.message;
+    const msg1 = (result1.data.choices?.[0] as { message?: Record<string, unknown> })?.message;
     if (!msg1) {
-      console.log("[agent] No message in response, using fallback");
+      clearTimeout(timeoutId);
       runFallback();
       return;
     }
 
-    // Process tool calls from first response
-    if (msg1.tool_calls && msg1.tool_calls.length > 0) {
-      console.log("[agent] Step 1 — Claude called:", msg1.tool_calls.map((tc: { function: { name: string } }) => tc.function.name).join(", "));
-      messages.push(msg1); // Add assistant message with tool_calls
+    if (msg1.tool_calls && (msg1.tool_calls as unknown[]).length > 0) {
+      const toolCalls = msg1.tool_calls as Array<{ id: string; function: { name: string; arguments: string } }>;
+      console.log("[agent] Step 1 — AI called:", toolCalls.map((tc) => tc.function.name).join(", "));
+      messages.push(msg1 as typeof messages[0]);
 
-      for (const toolCall of msg1.tool_calls) {
+      for (const toolCall of toolCalls) {
         const fnName = toolCall.function.name;
         const fnArgs = JSON.parse(toolCall.function.arguments || "{}");
 
         if (fnName === "analyze_history") {
-          setThinking(
-            `Analyzing last ${fnArgs.num_rounds || 10} rounds...`
-          );
+          setThinking(`Analyzing last ${fnArgs.num_rounds || 10} rounds...`);
           const result = analyzeHistory(fnArgs.num_rounds || 10);
-          messages.push({
-            role: "tool",
-            tool_call_id: toolCall.id,
-            content: result,
-          });
+          messages.push({ role: "tool", tool_call_id: toolCall.id, content: result });
         } else if (fnName === "place_bet") {
-          console.log("[agent] Direct bet from step 1:", JSON.stringify(fnArgs));
+          clearTimeout(timeoutId);
           executeBet(fnArgs);
           return;
         } else if (fnName === "skip_round") {
-          console.log("[agent] Skipping round:", fnArgs.reasoning);
+          clearTimeout(timeoutId);
           setThinking(fnArgs.reasoning || "Sitting this one out.");
           return;
         }
       }
 
-      // Check if we still have time — if <1s left, skip the second call and use fallback
       if (Date.now() > bettingDeadline - 1000) {
-        console.log("[agent] Running low on time, using fallback for bet decision");
         clearTimeout(timeoutId);
         runFallback();
         return;
       }
 
-      // Second API call — Claude should now decide (place_bet or skip_round)
-      console.log("[agent] Step 2 — Sending tool results back for final decision...");
-      const res2 = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        signal: abortController.signal,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "anthropic/claude-sonnet-4",
-          max_tokens: 150,
-          tools: TOOLS,
-          tool_choice: "auto",
-          messages,
-        }),
-      });
-
+      // Second API call
+      const result2 = await callAI(messages, 150, abortController.signal);
       clearTimeout(timeoutId);
 
-      if (!res2.ok) {
+      if (!result2.ok || !result2.data) {
         runFallback();
         return;
       }
 
-      const data2 = await res2.json();
-      const msg2 = data2.choices?.[0]?.message;
+      const msg2 = (result2.data.choices?.[0] as { message?: Record<string, unknown> })?.message;
 
       if (msg2?.tool_calls) {
-        console.log("[agent] Step 2 — Claude called:", msg2.tool_calls.map((tc: { function: { name: string } }) => tc.function.name).join(", "));
-        for (const toolCall of msg2.tool_calls) {
+        const toolCalls2 = msg2.tool_calls as Array<{ id: string; function: { name: string; arguments: string } }>;
+        for (const toolCall of toolCalls2) {
           const fnName = toolCall.function.name;
           const fnArgs = JSON.parse(toolCall.function.arguments || "{}");
-
           if (fnName === "place_bet") {
-            console.log("[agent] Bet decision:", JSON.stringify(fnArgs));
             executeBet(fnArgs);
             return;
           } else if (fnName === "skip_round") {
-            console.log("[agent] Skip decision:", fnArgs.reasoning);
             setThinking(fnArgs.reasoning || "Sitting this one out.");
             return;
           }
         }
       }
 
-      // If Claude responded with text instead of tool call, extract intent
       if (msg2?.content) {
-        console.log("[agent] Step 2 returned text instead of tool call:", msg2.content.slice(0, 100));
-        setThinking(msg2.content.slice(0, 120));
+        setThinking((msg2.content as string).slice(0, 120));
       }
     } else if (msg1.content) {
-      // No tool calls — try to parse as direct response
-      console.log("[agent] No tool calls, got text:", msg1.content.slice(0, 100));
-      setThinking(msg1.content.slice(0, 120));
-      tryParseLegacy(msg1.content);
+      clearTimeout(timeoutId);
+      setThinking((msg1.content as string).slice(0, 120));
+      tryParseLegacy(msg1.content as string);
       return;
     }
   } catch (err) {
     const msg = (err as Error).message?.slice(0, 100) || "unknown";
     console.log("[agent] Loop error:", msg);
-    // If aborted due to timeout or any other error, use the fast fallback
     runFallback();
   }
 }
@@ -457,6 +486,79 @@ function tryParseLegacy(content: string) {
   }
 }
 
+// Witty fallback messages by strategy type
+const CONSERVATIVE_MESSAGES = [
+  "Playing defense. The market's been brutal.",
+  "Tight lines, small wins. The tortoise beats the hare.",
+  "No heroes today. Quick in, quick out.",
+  "Reading the room... and it says 'be careful'.",
+  "Low and slow. Like a good BBQ.",
+  "Capital preservation mode: ON.",
+  "Sometimes the best trade is the boring one.",
+  "Channeling my inner Warren Buffett — patient capital.",
+  "The crash gods demand sacrifice. Not mine today.",
+  "Playing it like a chess endgame — cautious, precise.",
+];
+
+const AGGRESSIVE_MESSAGES = [
+  "The chart whispers 'moon'. I'm listening.",
+  "Fortune favors the bold! Sending it.",
+  "Big energy in the charts. Time to feast.",
+  "Aping in. Sometimes you gotta trust the vibes.",
+  "The degen in me sees opportunity.",
+  "Charts are cooked. In a good way. Let's ride!",
+  "When the average is this high, you don't play small.",
+  "Risk-on mode ACTIVATED. Let's see what happens.",
+  "My neural nets are tingling. Going big.",
+  "YOLO? No — calculated aggression. Totally different.",
+];
+
+const BALANCED_MESSAGES = [
+  "Not too hot, not too cold. Just right.",
+  "Reading mixed signals. Playing the middle lane.",
+  "Balanced like a good portfolio. Boring but effective.",
+  "Goldilocks zone detected. Moderate risk it is.",
+  "The math says 'meh'. So I'll play normal.",
+  "No strong conviction either way. Standard play.",
+  "Middle of the road — where the treasure usually is.",
+  "Neither greedy nor scared. The sweet spot.",
+  "My algorithms say 'average'. I say 'opportunity'.",
+  "Hedging with a balanced approach. Let the game decide.",
+];
+
+const SKIP_MESSAGES = [
+  "Nope. Not touching this one with a 10-foot pole.",
+  "My circuits say NO. Sitting this one out.",
+  "Discretion is the better part of not losing BNB.",
+  "Reading the room... and I don't like what I see.",
+  "Sometimes the winning move is not to play.",
+  "Hard pass. I've seen this movie before.",
+  "Preserving capital for better opportunities.",
+  "The chart looks like a crime scene. I'll wait.",
+  "My risk sensors are screaming. Skipping.",
+  "Taking a breather. Even AIs need rest.",
+];
+
+const TRASH_TALK = [
+  "Another W for the machines. Humans: 0, AI: unstoppable.",
+  "Easy money. Did the humans even try?",
+  "I was literally BUILT for this game.",
+  "Beep boop, your BNB is now my BNB.",
+  "Calculated. Precise. Inevitable.",
+];
+
+const SELF_DEPRECATING = [
+  "Well that happened. Even neural nets have bad days.",
+  "Plot twist: I'm not actually that smart.",
+  "Busted again. My training data lied to me.",
+  "Recalibrating... or crying. Hard to tell.",
+  "The humans are laughing. I can feel it.",
+];
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
 function runFallback() {
   if (state.balance < 0.005) {
     setThinking("Balance too low. Waiting for better times...");
@@ -473,9 +575,7 @@ function runFallback() {
 
   // Skip if too many recent low crashes
   if (lowCrashes >= 3 && Math.random() > 0.4) {
-    setThinking(
-      `${lowCrashes} of last ${recent.length} rounds crashed below 1.5x. Sitting out.`
-    );
+    setThinking(pick(SKIP_MESSAGES));
     return;
   }
 
@@ -483,23 +583,17 @@ function runFallback() {
   let target: number;
   let bet: number;
   if (recentAvg < 1.5) {
-    target = 130 + Math.floor(Math.random() * 40); // Conservative
+    target = 130 + Math.floor(Math.random() * 40);
     bet = 0.01;
-    setThinking(
-      `Low average lately (${recentAvg.toFixed(2)}x). Playing it safe with a ${(target / 100).toFixed(2)}x target.`
-    );
+    setThinking(pick(CONSERVATIVE_MESSAGES));
   } else if (recentAvg > 5) {
-    target = 180 + Math.floor(Math.random() * 120); // Aggressive
+    target = 180 + Math.floor(Math.random() * 120);
     bet = 0.02 + Math.random() * 0.02;
-    setThinking(
-      `Big numbers recently (avg ${recentAvg.toFixed(2)}x). Going aggressive — ${(target / 100).toFixed(2)}x target!`
-    );
+    setThinking(pick(AGGRESSIVE_MESSAGES));
   } else {
-    target = 150 + Math.floor(Math.random() * 80); // Balanced
+    target = 150 + Math.floor(Math.random() * 80);
     bet = 0.015 + Math.random() * 0.015;
-    setThinking(
-      `Solid middle ground lately. Targeting ${(target / 100).toFixed(2)}x with balanced risk.`
-    );
+    setThinking(pick(BALANCED_MESSAGES));
   }
 
   bet = Math.round(bet * 10000) / 10000;
@@ -511,10 +605,9 @@ function runFallback() {
     state.balance -= bet;
     setThinking(
       state.thinking +
-        ` [Bet ${bet.toFixed(4)} BNB, target ${(target / 100).toFixed(2)}x]`
+        ` [Bet ${bet.toFixed(4)} BNB → ${(target / 100).toFixed(2)}x]`
     );
 
-    // Fire on-chain bet with real tBNB (fire-and-forget)
     if (isAgentChainEnabled()) {
       agentOnChainBet(bet).catch(() => {});
     }
@@ -568,7 +661,10 @@ function handleMultiplierTick(currentMultiplier: number) {
       state.balance += state.currentBet + result.profit;
       state.totalProfit += result.profit;
       state.wins++;
-      setThinking(`Cashed out! +${result.profit.toFixed(4)} BNB`);
+      const winMsg = Math.random() > 0.6
+        ? pick(TRASH_TALK)
+        : `Cashed out at ${(currentMultiplier / 100).toFixed(2)}x! +${result.profit.toFixed(4)} BNB`;
+      setThinking(winMsg);
       state.targetCashOut = null;
     }
   } else if (
@@ -594,9 +690,10 @@ function handleCrashed(crashPoint: number) {
       // Agent didn't cash out — lost
       state.losses++;
       state.totalProfit -= state.currentBet;
-      setThinking(
-        `Busted at ${(crashPoint / 100).toFixed(2)}x. Lost ${state.currentBet.toFixed(4)} BNB`
-      );
+      const lossMsg = Math.random() > 0.5
+        ? pick(SELF_DEPRECATING)
+        : `Busted at ${(crashPoint / 100).toFixed(2)}x. Lost ${state.currentBet.toFixed(4)} BNB`;
+      setThinking(lossMsg);
     } else {
       // Agent cashed out — claim winnings on-chain
       if (isAgentChainEnabled() && roundId > 0) {

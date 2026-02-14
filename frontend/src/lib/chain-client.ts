@@ -44,6 +44,8 @@ function initChains() {
   const opbnbContract = process.env.NEXT_PUBLIC_CRASH_GAME_ADDRESS as `0x${string}` | undefined;
   const bscContract = process.env.NEXT_PUBLIC_CRASH_GAME_ADDRESS_BSC as `0x${string}` | undefined;
 
+  console.log(`[chain] initChains: opKey=${operatorKey ? "SET" : "MISSING"}, opbnb=${opbnbContract || "MISSING"}, bsc=${bscContract || "MISSING"}`);
+
   if (!operatorKey) {
     console.log("[chain] No OPERATOR_PRIVATE_KEY — on-chain calls disabled");
     return;
@@ -117,8 +119,12 @@ async function sendToChain(
 
 async function sendAll(functionName: string, args: unknown[] = []) {
   initChains();
-  if (chains.length === 0) return;
+  if (chains.length === 0) {
+    console.log(`[chain] sendAll(${functionName}) — no chains initialized`);
+    return;
+  }
 
+  console.log(`[chain] sendAll(${functionName}) — ${chains.length} chain(s)`);
   // Fire to all chains in parallel — don't wait for each other
   await Promise.allSettled(
     chains.map((c) => sendToChain(c, functionName, args))

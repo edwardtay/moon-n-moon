@@ -222,8 +222,10 @@ class GameEngine {
     this.state.bettingEndsAt = bettingEndsAt;
 
     // Fire on-chain startRound (fire and forget)
-    if (isChainEnabled()) {
-      onChainStartRound(commitHash).catch(() => {});
+    const chainEnabled = isChainEnabled();
+    console.log(`[engine] chain enabled: ${chainEnabled}`);
+    if (chainEnabled) {
+      onChainStartRound(commitHash).catch((e) => console.log(`[engine] startRound chain error: ${e}`));
     }
 
     this.emit({

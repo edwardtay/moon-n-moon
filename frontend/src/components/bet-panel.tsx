@@ -75,7 +75,15 @@ export function BetPanel({
 
   if (!isConnected) {
     return (
-      <div className="glass-card rounded-xl p-3.5 space-y-2">
+      <div className="glass-card rounded-xl p-3.5 space-y-2.5">
+        <div className="text-center">
+          <div className="text-sm font-bold text-white leading-tight">
+            Beat the AI. Cash out first.
+          </div>
+          <div className="text-xs text-zinc-400 mt-1">
+            Claude plays every round — watch it think in real-time
+          </div>
+        </div>
         <div className="flex items-center justify-center gap-2 text-xs text-zinc-300 flex-wrap">
           <span className="whitespace-nowrap"><span style={{ color: "#facc15" }}>1</span> Bet</span>
           <span className="text-zinc-600">&rarr;</span>

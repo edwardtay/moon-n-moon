@@ -1,17 +1,34 @@
-# Moon or Doom
+# MnM (Moon n Moon)
 
-A provably fair crash game on BNB Chain where players compete against an autonomous AI agent powered by Claude.
+A provably fair crash game on BNB Chain where you compete against an autonomous AI agent powered by Claude. Watch it think. Beat it to the cash out.
 
-**Live demo:** [moon-or-doom-game.vercel.app](https://moon-or-doom-game.vercel.app)
+**Live:** [moon-n-moon.vercel.app](https://moon-n-moon.vercel.app)
 
-## How It Works
+## What is this?
 
-1. **Place a bet** with BNB when the round opens
-2. **Watch the multiplier climb** — 1.5x, 2x, 5x, 10x...
-3. **Cash out before it crashes** — the multiplier can crash at any moment
-4. **Beat the AI** — Claude analyzes patterns and makes real-time decisions. All its reasoning is visible to players.
+A multiplier starts at 1.00x and climbs exponentially. It can crash at any moment — could be 1.01x, could be 50x. You bet BNB, watch the number climb, and cash out before the crash. Simple rules, infinite tension.
 
-The crash point is determined using a commit-reveal scheme. The operator commits a hash before the round starts, and reveals the crash point + salt after. Players can verify fairness by checking `keccak256(crashMultiplier, salt) == commitHash`.
+The twist: **Claude plays every round alongside you.** It analyzes crash history, calculates risk, and makes real-time bet/cash-out decisions using tool-use reasoning. All of its thinking is streamed live to every player. You're not just playing a game — you're competing against an AI that's learning the same patterns you are.
+
+## How it works
+
+1. **Bet** — Place BNB during the betting window
+2. **Watch** — The multiplier climbs: 1.5x, 2x, 5x, 10x...
+3. **Cash out** — Hit the button before it crashes. Your payout = bet × multiplier
+4. **Crash** — If you don't cash out in time, you lose your bet
+
+The crash point is locked before the round starts using a commit-reveal scheme. After the crash, the server seed is revealed so anyone can verify: `keccak256(crashMultiplier, salt) == commitHash`.
+
+## AI Agent
+
+Claude is a real autonomous player with its own wallet on BNB Chain. Every round:
+
+1. Calls `analyze_history` to study recent crash patterns (streaks, averages, risk indicators)
+2. Decides: `place_bet` with amount + target cash-out, or `skip_round` if conditions are bad
+3. During the round, monitors the multiplier and cashes out at its target
+4. All reasoning is visible to players in real-time via the Agent strip
+
+The agent is registered on-chain via **ERC-8004** (AI Agent Identity Registry) as Agent #83 on BSC Testnet. Its metadata endpoint serves structured identity data at `/api/agent/metadata`.
 
 ## Architecture
 
@@ -20,79 +37,52 @@ frontend/     Next.js 16 + wagmi + viem + RainbowKit
 contracts/    Foundry — CrashGame.sol (commit-reveal pattern)
 ```
 
-**Hybrid on-chain/off-chain design:**
-- **On-chain (opBNB + BSC):** Commit-reveal round proofs, verifiable crash points
-- **Off-chain (SSE):** Real-time multiplier broadcast, instant bets, AI agent decisions
+**Hybrid on-chain/off-chain:**
+- **On-chain (opBNB + BSC):** Commit-reveal round proofs, verifiable crash points, bet settlement
+- **Off-chain (SSE):** Real-time multiplier at 60fps (client-side interpolation from `e^(0.00006t)`), instant bets, AI agent reasoning stream
 
-## AI Agent
-
-The AI agent is an autonomous player with its own wallet, powered by Claude (via OpenRouter). Each round:
-
-1. Claude sees recent crash history and its own win/loss record
-2. Decides whether to bet, how much, and its target cash-out multiplier
-3. During the round, monitors the multiplier and cashes out at its target
-4. All reasoning is streamed to players in real-time via the Agent Panel
-
-The agent is registered on-chain via **ERC-8004** (AI Agent Identity Registry) on BSC Testnet.
+**Why hybrid?** Crash games need sub-50ms latency for the multiplier feed. On-chain ticks are impossible. Instead, the crash point is committed on-chain before the round, and revealed after — giving players the speed of off-chain with the trust of on-chain verification.
 
 ## Contracts
 
 | Contract | Address | Network |
 |----------|---------|---------|
-| CrashGame | [`0x37E04515eD142A824c853CC74a76Cb9E0119CfFe`](https://testnet.opbnbscan.com/address/0x37E04515eD142A824c853CC74a76Cb9E0119CfFe) | opBNB Testnet (5611) |
-| CrashGame | [`0x8721504d22ca89277D8Bd70B9260B55FCB7F2d1C`](https://testnet.bscscan.com/address/0x8721504d22ca89277D8Bd70B9260B55FCB7F2d1C) | BSC Testnet (97) |
-| ERC-8004 Identity | Agent ID #83 on [`0x8004A818BFB912233c491871b3d84c89A494BD9e`](https://testnet.bscscan.com/address/0x8004A818BFB912233c491871b3d84c89A494BD9e) | BSC Testnet (97) |
+| CrashGame | [`0x37E04515eD142A824c853CC74a76Cb9E0119CfFe`](https://testnet.opbnbscan.com/address/0x37E04515eD142A824c853CC74a76Cb9E0119CfFe) | opBNB Testnet |
+| CrashGame | [`0x8721504d22ca89277D8Bd70B9260B55FCB7F2d1C`](https://testnet.bscscan.com/address/0x8721504d22ca89277D8Bd70B9260B55FCB7F2d1C) | BSC Testnet |
+| ERC-8004 Registry | Agent #83 on [`0x8004A818BFB912233c491871b3d84c89A494BD9e`](https://testnet.bscscan.com/address/0x8004A818BFB912233c491871b3d84c89A494BD9e) | BSC Testnet |
 
-**Key transactions:**
-- Agent Registration: [`0xafed281d...`](https://testnet.bscscan.com/tx/0xafed281de06bb37ec6e1b564a1409c52f95a061873d34b6c947d370efaa5b05f)
-- Agent URI Set: [`0x628273c7...`](https://testnet.bscscan.com/tx/0x628273c73517161e6a26879e11a2e9ee46fcc7f55237e27b837abbff56ecd082)
+## Game Mechanics
 
-## Tech Stack
-
-- **Frontend:** Next.js 16, React 19, Tailwind v4, wagmi, viem, RainbowKit
-- **Smart Contracts:** Solidity 0.8.26, Foundry
-- **AI Agent:** Claude (Anthropic) via OpenRouter, tool-use pattern
-- **Real-time:** Server-Sent Events (SSE) from Next.js API routes
-- **Identity:** ERC-8004 Agent Identity Registry on BSC
+- **Multiplier growth:** `1.00x × e^(0.00006 × elapsed_ms)` — smooth exponential curve
+- **Crash distribution:** ~3% instant crash at 1.00x, ~33% below 1.5x, ~50% below 2x
+- **Provably fair:** HMAC-SHA256 crash point derivation with on-chain commit-reveal
+- **Client-side interpolation:** 60fps multiplier via `requestAnimationFrame`, server ticks throttled to 20fps for data points
+- **Web Audio API sounds:** All game sounds synthesized in-browser (no external files)
+- **localStorage persistence:** Win/loss records and crash history survive page refresh
 
 ## Running Locally
 
 ```bash
-# Frontend
 cd frontend
 pnpm install
 pnpm dev
-
-# Contracts
-cd contracts
-forge build
-forge test
 ```
 
 Create `frontend/.env.local`:
 ```
 NEXT_PUBLIC_WC_PROJECT_ID=your_walletconnect_id
-NEXT_PUBLIC_CRASH_GAME_ADDRESS=0x8721504d22ca89277D8Bd70B9260B55FCB7F2d1C
+NEXT_PUBLIC_CRASH_GAME_ADDRESS=0x37E04515eD142A824c853CC74a76Cb9E0119CfFe
 OPENROUTER_API_KEY=your_openrouter_key
 OPERATOR_PRIVATE_KEY=0x...
 AGENT_PRIVATE_KEY=0x...
 ```
 
-## Deploy Contract
-
 ```bash
+# Contracts
 cd contracts
-forge script script/Deploy.s.sol:DeployScript \
-  --rpc-url https://data-seed-prebsc-1-s1.binance.org:8545 \
-  --broadcast
+forge build
+forge test
 ```
-
-## Game Mechanics
-
-- **Multiplier growth:** `1.00x * e^(0.00006 * elapsedMs)` — smooth exponential curve
-- **Crash point distribution:** ~3% instant crash at 1.00x, ~33% below 1.5x, ~50% below 2x
-- **Provably fair:** HMAC-SHA256 based crash point derivation with on-chain commit-reveal
-- **House edge:** ~3% built into the crash point distribution
 
 ## License
 

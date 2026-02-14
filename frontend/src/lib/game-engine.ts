@@ -55,8 +55,8 @@ export interface GameEvent {
 
 type Listener = (event: GameEvent) => void;
 
-const BETTING_DURATION = 10_000; // 10 seconds
-const COUNTDOWN_DURATION = 5_000; // 5 seconds between rounds
+const BETTING_DURATION = 8_000; // 8 seconds — fast enough to maintain energy
+const COUNTDOWN_DURATION = 3_000; // 3 seconds between rounds — keep it snappy
 const TICK_INTERVAL = 50; // 50ms ticks for smooth animation
 
 export interface AgentStats {
@@ -155,7 +155,7 @@ class GameEngine {
     while (this.running) {
       await this.runRound();
       // Brief pause between rounds
-      await this.sleep(2000);
+      await this.sleep(1500);
     }
   }
 

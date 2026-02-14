@@ -16,63 +16,73 @@ const opBNBTestnet = defineChain({
  * Dual-chain client for operator wallet.
  * Sends commit-reveal proofs to BOTH opBNB Testnet and BSC Testnet.
  * All calls are fire-and-forget — the off-chain game engine is the source of truth.
+ *
+ * ENV VARS are read lazily inside initChains() — NOT at module load —
+ * because Vercel serverless may load this module during SSG when env vars aren't available.
  */
-
-const OPBNB_CONTRACT = process.env
-  .NEXT_PUBLIC_CRASH_GAME_ADDRESS as `0x${string}` | undefined;
-
-const BSC_CONTRACT = process.env
-  .NEXT_PUBLIC_CRASH_GAME_ADDRESS_BSC as `0x${string}` | undefined;
-
-const OPERATOR_KEY = process.env.OPERATOR_PRIVATE_KEY as
-  | `0x${string}`
-  | undefined;
 
 // Per-chain state
 interface ChainState {
-  walletClient: ReturnType<typeof createWalletClient> | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  walletClient: any;
   contractAddress: `0x${string}`;
   consecutiveFailures: number;
   circuitOpen: boolean;
   label: string;
 }
 
-const MAX_FAILURES = 3;
-
+const MAX_FAILURES = 5;
+let initialized = false;
 const chains: ChainState[] = [];
 
 function initChains() {
-  if (chains.length > 0 || !OPERATOR_KEY) return;
+  if (initialized) return;
+  initialized = true;
 
-  const account = privateKeyToAccount(OPERATOR_KEY);
+  // Read env vars lazily at runtime, not at module load
+  const operatorKey = process.env.OPERATOR_PRIVATE_KEY as `0x${string}` | undefined;
+  const opbnbContract = process.env.NEXT_PUBLIC_CRASH_GAME_ADDRESS as `0x${string}` | undefined;
+  const bscContract = process.env.NEXT_PUBLIC_CRASH_GAME_ADDRESS_BSC as `0x${string}` | undefined;
 
-  if (OPBNB_CONTRACT) {
+  if (!operatorKey) {
+    console.log("[chain] No OPERATOR_PRIVATE_KEY — on-chain calls disabled");
+    return;
+  }
+
+  const account = privateKeyToAccount(operatorKey);
+  console.log(`[chain] Operator: ${account.address}`);
+
+  if (opbnbContract) {
     chains.push({
       walletClient: createWalletClient({
         account,
         chain: opBNBTestnet,
         transport: http("https://opbnb-testnet-rpc.bnbchain.org"),
       }),
-      contractAddress: OPBNB_CONTRACT,
+      contractAddress: opbnbContract,
       consecutiveFailures: 0,
       circuitOpen: false,
       label: "opBNB",
     });
+    console.log(`[chain] opBNB contract: ${opbnbContract}`);
   }
 
-  if (BSC_CONTRACT) {
+  if (bscContract) {
     chains.push({
       walletClient: createWalletClient({
         account,
         chain: bscTestnet,
         transport: http("https://data-seed-prebsc-1-s1.bnbchain.org:8545"),
       }),
-      contractAddress: BSC_CONTRACT,
+      contractAddress: bscContract,
       consecutiveFailures: 0,
       circuitOpen: false,
       label: "BSC",
     });
+    console.log(`[chain] BSC contract: ${bscContract}`);
   }
+
+  console.log(`[chain] Initialized ${chains.length} chain(s)`);
 }
 
 async function sendToChain(
@@ -83,8 +93,7 @@ async function sendToChain(
   if (chain.circuitOpen) return null;
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const hash = await (chain.walletClient as any).writeContract({
+    const hash = await chain.walletClient.writeContract({
       address: chain.contractAddress,
       abi: crashGameAbi,
       functionName,
@@ -94,8 +103,10 @@ async function sendToChain(
     chain.consecutiveFailures = 0;
     console.log(`[chain:${chain.label}] ${functionName} tx: ${hash}`);
     return hash;
-  } catch {
+  } catch (err: unknown) {
     chain.consecutiveFailures++;
+    const msg = err instanceof Error ? err.message.slice(0, 100) : "unknown";
+    console.log(`[chain:${chain.label}] ${functionName} FAILED (${chain.consecutiveFailures}): ${msg}`);
     if (chain.consecutiveFailures >= MAX_FAILURES && !chain.circuitOpen) {
       chain.circuitOpen = true;
       console.log(`[chain:${chain.label}] Circuit breaker OPEN after ${MAX_FAILURES} failures.`);
@@ -143,5 +154,7 @@ export async function onChainEndRound(
 }
 
 export function isChainEnabled(): boolean {
-  return !!OPERATOR_KEY && (!!OPBNB_CONTRACT || !!BSC_CONTRACT);
+  // Also lazy — check env at call time
+  return !!process.env.OPERATOR_PRIVATE_KEY &&
+    (!!process.env.NEXT_PUBLIC_CRASH_GAME_ADDRESS || !!process.env.NEXT_PUBLIC_CRASH_GAME_ADDRESS_BSC);
 }

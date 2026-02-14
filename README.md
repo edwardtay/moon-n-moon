@@ -47,8 +47,8 @@ contracts/    Foundry — CrashGame.sol (commit-reveal pattern)
 
 | Contract | Address | Network |
 |----------|---------|---------|
-| CrashGame | [`0xb76bd37757b00792ad7f7778731190db5f2401c7`](https://testnet.opbnbscan.com/address/0xb76bd37757b00792ad7f7778731190db5f2401c7) | opBNB Testnet |
-| CrashGame | [`0x665ca9f1471d43759814f5faa0196dd747160458`](https://testnet.bscscan.com/address/0x665ca9f1471d43759814f5faa0196dd747160458) | BSC Testnet |
+| CrashGame | [`0x12B64dF15e6277e5dD091899F1f00969890E6a3C`](https://testnet.opbnbscan.com/address/0x12B64dF15e6277e5dD091899F1f00969890E6a3C) | opBNB Testnet |
+| CrashGame | [`0x872BAA82E95Fa13488B64577d402D91396de89c8`](https://testnet.bscscan.com/address/0x872BAA82E95Fa13488B64577d402D91396de89c8) | BSC Testnet |
 | ERC-8004 Registry | Agent #83 on [`0x8004A818BFB912233c491871b3d84c89A494BD9e`](https://testnet.bscscan.com/address/0x8004A818BFB912233c491871b3d84c89A494BD9e) | BSC Testnet |
 
 ## Game Mechanics
